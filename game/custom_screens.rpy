@@ -1,382 +1,653 @@
 ## Return by Death Manor - Custom Screens and UI
+##
+## All colour, type, and chrome comes from theme.rpy. Nothing here should
+## hardcode a hex value -- if a new shade is needed, add it to the palette.
+
 init offset = 1
 
 init python:
     def character_has_conflict(char_id, conflicts, facts):
+        facts_by_id = {}
+        for f in facts:
+            facts_by_id[f.id] = f
         for pair in conflicts:
-            f1 = next((f for f in facts if f.id == pair[0]), None)
-            f2 = next((f for f in facts if f.id == pair[1]), None)
+            f1 = facts_by_id.get(pair[0], None)
+            f2 = facts_by_id.get(pair[1], None)
             if (f1 and f1.char == char_id) or (f2 and f2.char == char_id):
                 return True
         return False
 
+    def char_tint(char_id):
+        """Speech colour for a character, for tinting names in menus and lists."""
+        return {
+            "adrian": GOTH_C_ADRIAN,
+            "marika": GOTH_C_MARIKA,
+            "elise": GOTH_C_ELISE,
+            "vance": GOTH_C_VANCE,
+            "hargrove": GOTH_C_HARGROVE,
+            "odile": GOTH_C_ODILE,
+        }.get(char_id, GOTH_TEXT_SOFT)
+
+    def trust_phrase(level):
+        """Trust as a human read rather than a bare integer."""
+        return {
+            0: "Closed to you",
+            1: "Wary",
+            2: "Thawing",
+            3: "Open",
+        }.get(level, "Unknown")
+
+
 ################################################################################
-## HUD Screen (Always visible during investigation)
+## Shared Furniture
+################################################################################
+
+## Radial darkening that sits over backgrounds. Keeps the eye centred and
+## makes the candlelit palette read as candlelit.
+screen manor_vignette():
+    zorder 10
+    add "goth_vignette"
+
+################################################################################
+## HUD (always visible during investigation)
 ################################################################################
 screen hud():
     zorder 100
+
     frame:
         xalign 0.5
-        yalign 0.02
-        background "#11141acc"
-        xpadding 25
-        ypadding 12
-        has hbox:
-            spacing 30
+        yalign 0.015
+        background GOTH_HUDBAR
+        xpadding 30
+        ypadding 14
+
+        hbox:
+            spacing 34
             align (0.5, 0.5)
 
-            # Loop indicator
-            hbox:
-                spacing 5
-                text "LOOP [game_state.loop_no]" size 22 bold True color "#e0e0e0"
+            # ─── Loop counter ───
+            vbox:
+                spacing 2
+                text "LOOP" style "goth_label"
+                text "[game_state.loop_no]" style "goth_value" color GOTH_GOLD size 26
 
-            # Time indicator
-            hbox:
-                spacing 5
-                text "Day [game_state.current_day] • [game_state.current_slot.upper()]" size 22 color "#66c1e0"
+            add Solid(GOTH_RAIL) xysize (1, 42) yalign 0.5
 
-            # Actions left
-            hbox:
-                spacing 5
-                text "Actions Left:" size 20 color "#aaaaaa"
-                text "[game_state.slot_actions_remaining]" size 22 bold True color "#ffffff"
+            # ─── Day and time of day ───
+            vbox:
+                spacing 2
+                text "DAY [game_state.current_day]" style "goth_label"
+                text "[game_state.current_slot.capitalize()]" style "goth_value"
 
-            # Strain arm indicator (Pips)
-            hbox:
-                spacing 6
-                text "Strain:" size 20 color "#aaaaaa"
-                $ strain_val = game_state.strain
+            add Solid(GOTH_RAIL) xysize (1, 42) yalign 0.5
+
+            # ─── Actions left in this slot ───
+            vbox:
+                spacing 2
+                text "ACTIONS" style "goth_label"
                 hbox:
-                    spacing 4
-                    for i in range(1, 4):
-                        if i <= strain_val:
-                            text "●" size 24 color "#ff3333"
+                    spacing 6
+                    text "[game_state.slot_actions_remaining]" style "goth_value" size 21
+                    text "remaining" style "goth_value" size 19 color GOTH_TEXT_SOFT yalign 1.0
+
+            add Solid(GOTH_RAIL) xysize (1, 42) yalign 0.5
+
+            # ─── Strain, drawn as filling fractures rather than glyphs ───
+            vbox:
+                spacing 5
+                text "STRAIN" style "goth_label"
+                hbox:
+                    spacing 5
+                    yalign 0.5
+                    for i in range(1, MAX_STRAIN + 1):
+                        if i <= game_state.strain:
+                            add Solid(GOTH_BLOOD_HI) xysize (28, 7)
                         else:
-                            text "○" size 24 color "#555555"
+                            add Solid(GOTH_RAIL_DK) xysize (28, 7)
 
-            # Revolver bullet indicator
-            hbox:
-                spacing 6
-                text "Revolver:" size 20 color "#aaaaaa"
+            add Solid(GOTH_RAIL) xysize (1, 42) yalign 0.5
+
+            # ─── The one bullet ───
+            vbox:
+                spacing 4
+                text "REVOLVER" style "goth_label"
                 if game_state.bullet_available:
-                    text "● Loaded" size 20 bold True color "#ffd700"
+                    hbox:
+                        spacing 7
+                        yalign 0.5
+                        add Solid(GOTH_GOLD) xysize (11, 11) yalign 0.5
+                        text "One round" style "goth_value" size 19 color GOTH_GOLD
                 else:
-                    text "○ Spent" size 20 color "#777777"
+                    hbox:
+                        spacing 7
+                        yalign 0.5
+                        add Solid(GOTH_RAIL_DK) xysize (11, 11) yalign 0.5
+                        text "Spent" style "goth_value" size 19 color GOTH_TEXT_OFF
 
-            # Notebook button
-            textbutton "📓 Notebook" action Show("notebook") text_size 20 text_color "#ffffff" text_hover_color "#66c1e0"
+            add Solid(GOTH_RAIL) xysize (1, 42) yalign 0.5
+
+            # ─── Notebook ───
+            button:
+                background GOTH_BTN_FLAT
+                hover_background GOTH_BTN_HOVER
+                xpadding 20
+                ypadding 10
+                action Show("notebook")
+                text "Notebook" style "goth_button_text" size 20
+
 
 ################################################################################
-## Location Selection Screen
+## Location Selection
 ################################################################################
 screen location_picker(locations_data):
     modal True
     zorder 90
+
+    add GOTH_SCRIM
+
     frame:
         xalign 0.5
         yalign 0.5
-        xsize 900
-        ysize 580
-        background "#181c24fa"
-        xpadding 40
-        ypadding 30
+        xsize 1020
+        background GOTH_PANEL_FRAME
+        xpadding 48
+        ypadding 38
 
         vbox:
-            spacing 20
+            spacing 6
             xfill True
 
-            text "CHOOSE LOCATION" size 30 bold True color "#ffffff" xalign 0.5
-            text "Slot: Day [game_state.current_day] - [game_state.current_slot.upper()]" size 20 color "#888888" xalign 0.5
+            text "Where will you go?" style "goth_title" xalign 0.5
+            text "Day [game_state.current_day] — [game_state.current_slot]" style "goth_subtitle" xalign 0.5
 
-            null height 10
+            add "goth_divider" xalign 0.5 yoffset 14 xsize 520
+
+            null height 26
 
             vbox:
-                spacing 14
+                spacing 12
                 xfill True
                 for loc_id, present in locations_data.items():
                     $ loc_name = get_location_display_name(loc_id)
-                    $ names_str = ", ".join([get_character_display_name(c) for c in present]) if present else "Quiet (empty)"
                     button:
                         xfill True
-                        ypadding 12
-                        xpadding 20
-                        background "#252b38"
-                        hover_background "#354054"
+                        ypadding 16
+                        xpadding 24
+                        background GOTH_BTN
+                        hover_background GOTH_BTN_HOVER
                         action Return(loc_id)
+
                         hbox:
                             xfill True
-                            text "[loc_name]" size 24 bold True color "#66c1e0"
-                            text "Present: [names_str]" size 20 color "#cccccc" xalign 1.0
+                            spacing 20
+
+                            text "[loc_name]":
+                                font GOTH_FONT_DISPLAY_B
+                                size 25
+                                color GOTH_TEXT
+                                hover_color GOTH_GOLD
+                                yalign 0.5
+                                xsize 320
+
+                            # Who is here, each name in their own colour.
+                            if present:
+                                hbox:
+                                    spacing 0
+                                    yalign 0.5
+                                    xalign 1.0
+                                    for idx, c in enumerate(present):
+                                        if idx > 0:
+                                            text "  ·  " style "goth_body_soft" size 18 color GOTH_TEXT_OFF yalign 0.5
+                                        text "[get_character_display_name(c)]":
+                                            font GOTH_FONT_BODY_M
+                                            size 19
+                                            color char_tint(c)
+                                            yalign 0.5
+                            else:
+                                text "empty — you would be alone":
+                                    font GOTH_FONT_BODY_I
+                                    size 19
+                                    color GOTH_TEXT_OFF
+                                    yalign 0.5
+                                    xalign 1.0
+
 
 ################################################################################
-## Action Picker Screen (At current location)
+## Action Picker (at the chosen location)
 ################################################################################
 screen action_picker(current_loc, present_chars, actions_left, current_day, bullet_avail):
     modal True
     zorder 90
     $ loc_title = get_location_display_name(current_loc)
+
+    add GOTH_SCRIM
+
     frame:
         xalign 0.5
         yalign 0.5
-        xsize 900
-        ysize 580
-        background "#181c24fa"
-        xpadding 40
-        ypadding 30
+        xsize 1020
+        background GOTH_PANEL_FRAME
+        xpadding 48
+        ypadding 38
 
         vbox:
-            spacing 20
+            spacing 6
             xfill True
 
-            text "[loc_title]" size 32 bold True color "#ffffff" xalign 0.5
-            text "Actions remaining this slot: [actions_left]" size 20 color "#888888" xalign 0.5
+            text "[loc_title]" style "goth_title" xalign 0.5
+            text "[actions_left] of [ACTIONS_PER_SLOT] actions left this hour" style "goth_subtitle" xalign 0.5
 
-            null height 10
+            add "goth_divider" xalign 0.5 yoffset 14 xsize 520
+
+            null height 26
 
             vbox:
-                spacing 14
+                spacing 11
                 xfill True
 
-                # Talk actions for present characters
+                # ─── Talk to whoever is present ───
                 for char in present_chars:
                     $ cname = get_character_display_name(char)
                     $ is_locked = char in game_state.locked_out
                     $ already_talked = char in game_state.conversations_this_slot
-                    if is_locked:
-                        button:
+
+                    if is_locked or already_talked:
+                        frame:
                             xfill True
-                            ypadding 10
-                            xpadding 20
-                            background "#222222"
-                            action NullAction()
-                            text "Talk to [cname] (Refuses to speak right now)" size 22 color "#666666"
-                    elif already_talked:
-                        button:
-                            xfill True
-                            ypadding 10
-                            xpadding 20
-                            background "#222222"
-                            action NullAction()
-                            text "Talk to [cname] (Already spoke this slot)" size 22 color "#666666"
+                            ypadding 14
+                            xpadding 24
+                            background GOTH_BTN_OFF
+                            hbox:
+                                xfill True
+                                text "Speak with [cname]":
+                                    font GOTH_FONT_BODY_M
+                                    size 22
+                                    color GOTH_TEXT_OFF
+                                if is_locked:
+                                    text "will not look at you":
+                                        font GOTH_FONT_BODY_I
+                                        size 18
+                                        color GOTH_TEXT_OFF
+                                        xalign 1.0
+                                else:
+                                    text "already spoken to":
+                                        font GOTH_FONT_BODY_I
+                                        size 18
+                                        color GOTH_TEXT_OFF
+                                        xalign 1.0
                     else:
                         button:
                             xfill True
-                            ypadding 10
-                            xpadding 20
-                            background "#252b38"
-                            hover_background "#354054"
+                            ypadding 14
+                            xpadding 24
+                            background GOTH_BTN
+                            hover_background GOTH_BTN_HOVER
                             action Return(("talk", char))
-                            text "Talk to [cname]" size 22 color "#ffffff"
+                            hbox:
+                                xfill True
+                                text "Speak with ":
+                                    font GOTH_FONT_BODY_M
+                                    size 22
+                                    color GOTH_TEXT_SOFT
+                                text "[cname]":
+                                    font GOTH_FONT_BODY_B
+                                    size 22
+                                    color char_tint(char)
+                                $ ctrust = game_state.trust.get(char, 0)
+                                text "[trust_phrase(ctrust)]":
+                                    font GOTH_FONT_BODY_I
+                                    size 18
+                                    color GOTH_TEXT_MUTE
+                                    xalign 1.0
 
-                # Search action
+                null height 6
+
+                # ─── Search ───
                 button:
                     xfill True
-                    ypadding 10
-                    xpadding 20
-                    background "#252b38"
-                    hover_background "#354054"
+                    ypadding 14
+                    xpadding 24
+                    background GOTH_BTN
+                    hover_background GOTH_BTN_HOVER
                     action Return(("search", current_loc))
-                    text "🔍 Search [loc_title]" size 22 color "#e0d080"
+                    hbox:
+                        xfill True
+                        text "Search [loc_title]":
+                            font GOTH_FONT_BODY_M
+                            size 22
+                            color GOTH_BRASS
+                            hover_color GOTH_GOLD
+                        text "only works unobserved":
+                            font GOTH_FONT_BODY_I
+                            size 18
+                            color GOTH_TEXT_MUTE
+                            xalign 1.0
 
-                # Shoot action (Day 2 only, bullet available, people present)
-                if current_day == 2 and bullet_avail and present_chars:
+                # ─── The revolver ───
+                if bullet_avail and present_chars:
                     button:
                         xfill True
-                        ypadding 10
-                        xpadding 20
-                        background "#4a1c1c"
-                        hover_background "#6e2525"
+                        ypadding 14
+                        xpadding 24
+                        background GOTH_BTN_BLOOD
+                        hover_background GOTH_BTN_BLOOD_HI
                         action Return(("shoot_menu", current_loc))
-                        text "⚡ Draw Revolver (One Bullet)" size 22 color "#ff6666"
+                        hbox:
+                            xfill True
+                            text "Draw your father's revolver":
+                                font GOTH_FONT_BODY_B
+                                size 22
+                                color GOTH_BLOOD_HI
+                                hover_color GOTH_CREAM
+                            text "one round, no second chance":
+                                font GOTH_FONT_BODY_I
+                                size 18
+                                color GOTH_BLOOD_HI
+                                xalign 1.0
 
-                # Leave / Pass action
+                # ─── Pass ───
                 button:
                     xfill True
-                    ypadding 10
-                    xpadding 20
-                    background "#1a1f29"
-                    hover_background "#28303f"
+                    ypadding 12
+                    xpadding 24
+                    background GOTH_BTN_FLAT
+                    hover_background GOTH_BTN_HOVER
                     action Return(("pass", None))
-                    text "Wait / Pass Time" size 20 color "#888888"
+                    text "Let the hour pass":
+                        font GOTH_FONT_BODY_I
+                        size 20
+                        color GOTH_TEXT_MUTE
+                        hover_color GOTH_TEXT_SOFT
+
 
 ################################################################################
-## Shoot Target Picker
+## Revolver: Target Selection
 ################################################################################
-screen shoot_target_picker(present_chars):
+screen shoot_target_picker(present_chars, weapon="revolver"):
     modal True
     zorder 95
+
+    add GOTH_SCRIM
+
     frame:
         xalign 0.5
         yalign 0.5
-        xsize 700
-        ysize 450
-        background "#241010fa"
-        xpadding 35
-        ypadding 25
+        xsize 820
+        background GOTH_PANEL_BLOOD
+        xpadding 44
+        ypadding 38
 
         vbox:
-            spacing 20
+            spacing 6
             xfill True
 
-            text "DRAW REVOLVER" size 30 bold True color "#ff4444" xalign 0.5
-            text "Aim at whom? You have only ONE bullet." size 20 color "#dddddd" xalign 0.5
+            if weapon == "knife":
+                text "The Knife" style "goth_title" color GOTH_BLOOD_HI xalign 0.5
+                text "Close enough to feel them stop. Whoever you choose, you cannot choose again." style "goth_subtitle" color GOTH_TEXT_SOFT xalign 0.5
+            else:
+                text "One Bullet" style "goth_title" color GOTH_BLOOD_HI xalign 0.5
+                text "Whoever you choose, you cannot choose again." style "goth_subtitle" color GOTH_TEXT_SOFT xalign 0.5
 
-            null height 10
+            add "goth_divider" xalign 0.5 yoffset 14 xsize 420
+
+            null height 26
 
             vbox:
-                spacing 12
+                spacing 11
                 xfill True
                 for char in present_chars:
                     $ cname = get_character_display_name(char)
                     button:
                         xfill True
-                        ypadding 10
-                        xpadding 20
-                        background "#3d1818"
-                        hover_background "#5c2020"
+                        ypadding 15
+                        xpadding 24
+                        background GOTH_BTN_BLOOD
+                        hover_background GOTH_BTN_BLOOD_HI
                         action Return(char)
-                        text "Fire at [cname]" size 22 bold True color "#ff9999"
+                        text ("Go for [cname]" if weapon == "knife" else "Take aim at [cname]"):
+                            font GOTH_FONT_BODY_B
+                            size 23
+                            color char_tint(char)
+                            hover_color GOTH_CREAM
+
+                null height 8
 
                 button:
                     xfill True
-                    ypadding 10
-                    xpadding 20
-                    background "#1a1a1a"
-                    hover_background "#2c2c2c"
+                    ypadding 13
+                    xpadding 24
+                    background GOTH_BTN_FLAT
+                    hover_background GOTH_BTN_HOVER
                     action Return("cancel")
-                    text "Lower the Gun (Cancel)" size 20 color "#aaaaaa"
+                    text ("Put the knife away" if weapon == "knife" else "Lower the gun"):
+                        font GOTH_FONT_BODY_I
+                        size 20
+                        color GOTH_TEXT_MUTE
+                        hover_color GOTH_TEXT_SOFT
+
 
 ################################################################################
-## Shoot Confirmation Modal
+## Revolver: Confirmation
 ################################################################################
-screen shoot_confirm(target_name):
+screen shoot_confirm(target_name, weapon="revolver"):
     modal True
     zorder 100
+
+    add GOTH_SCRIM
+
     frame:
         xalign 0.5
         yalign 0.5
-        xsize 650
-        ysize 380
-        background "#1a0808fa"
-        xpadding 35
-        ypadding 30
+        xsize 760
+        background GOTH_PANEL_BLOOD
+        xpadding 46
+        ypadding 40
 
         vbox:
-            spacing 20
+            spacing 18
             xfill True
 
-            text "CONFIRM SHOT" size 28 bold True color "#ff3333" xalign 0.5
-            text "Are you certain you wish to shoot [target_name]?" size 22 color "#ffffff" xalign 0.5
-            text "If you shoot an innocent person, night will fall with the real killer still walking these halls." size 18 color "#ffaaaa" xalign 0.5
+            text ("You are close enough now." if weapon == "knife" else "The hammer is back."):
+                style "goth_title"
+                size 30
+                color GOTH_BLOOD_HI
+                xalign 0.5
 
-            null height 15
+            add "goth_divider" xalign 0.5 xsize 380
+
+            text "[target_name] is in your sights.":
+                style "goth_body"
+                size 24
+                xalign 0.5
+                text_align 0.5
+
+            text ("If you are wrong, you will have done it with your hands, from arm's length, and the house will hear it." if weapon == "knife" else "If you are wrong, they die for nothing, the house goes dark, and whoever is really waiting for you tonight will take their time."):
+                font GOTH_FONT_BODY_I
+                size 19
+                color GOTH_TEXT_SOFT
+                xalign 0.5
+                text_align 0.5
+                xmaximum 600
+                line_spacing 5
+
+            null height 14
 
             hbox:
-                spacing 25
+                spacing 22
                 xalign 0.5
-                button:
-                    xsize 220
-                    ypadding 12
-                    background "#661818"
-                    hover_background "#992020"
-                    action Return("shoot")
-                    text "PULL TRIGGER" size 20 bold True color "#ffffff" xalign 0.5
 
                 button:
-                    xsize 220
-                    ypadding 12
-                    background "#2a2a2a"
-                    hover_background "#444444"
+                    xsize 260
+                    ypadding 15
+                    background GOTH_BTN_BLOOD
+                    hover_background GOTH_BTN_BLOOD_HI
+                    action Return("shoot")
+                    text ("Do it" if weapon == "knife" else "Pull the trigger"):
+                        font GOTH_FONT_BODY_B
+                        size 21
+                        color GOTH_CREAM
+                        xalign 0.5
+
+                button:
+                    xsize 260
+                    ypadding 15
+                    background GOTH_BTN_FLAT
+                    hover_background GOTH_BTN_HOVER
                     action Return("cancel")
-                    text "HESITATE" size 20 color "#cccccc" xalign 0.5
+                    text "Hesitate":
+                        font GOTH_FONT_BODY_M
+                        size 21
+                        color GOTH_TEXT_MUTE
+                        hover_color GOTH_TEXT_SOFT
+                        xalign 0.5
+
 
 ################################################################################
-## Custom Conversation UI Screen
+## Conversation: NPC line on the painted plate, Adrian's options beneath
 ################################################################################
 screen conversation_ui(char_name, char_color, npc_line, choices):
-    zorder 80
+    zorder 90
+    modal True
 
-    # NPC Line Box (Styled like gothic horror dialogue)
-    frame:
+    # Voice blips while the typewriter runs.
+    on "show" action Play("voice_sfx", "audio/voice_" + str(active_speaker) + ".wav", loop=True)
+    timer 1.8 action Stop("voice_sfx")
+    on "hide" action Stop("voice_sfx")
+
+    # ─── Speaker's line, laid into the painted candle plate ───
+    fixed:
+        xsize 1620
+        ysize 226
         xalign 0.5
-        yalign 0.68
-        xsize 1300
-        ysize 150
-        background "#10141ce0"
-        xpadding 30
-        ypadding 20
+        ypos 596
+
+        add GOTH_CONVOBOX_ART
 
         vbox:
-            spacing 6
-            text "[char_name]" size 24 bold True color "[char_color]"
-            text "[npc_line]" size 22 color "#ffffff"
+            xpos 266
+            ypos 42
+            xmaximum 1306
+            spacing 7
 
-    # 4 Choice Buttons
-    frame:
+            text "[char_name]":
+                font GOTH_FONT_DISPLAY_B
+                size 25
+                color char_color
+                kerning 1.4
+                outlines [(2, GOTH_VOID, 0, 0)]
+
+            text "[npc_line]":
+                font GOTH_FONT_BODY
+                size 23
+                color GOTH_TEXT
+                line_spacing 6
+                slow_cps 38
+                xmaximum 1296
+                outlines [(2, "#0d080999", 0, 1)]
+
+    # ─── Adrian's four replies ───
+    vbox:
         xalign 0.5
-        yalign 0.95
-        xsize 1300
-        ysize 170
-        background "#0a0c12ee"
-        xpadding 25
-        ypadding 15
+        ypos 846
+        xsize 1620
+        spacing 11
 
-        grid 2 2:
-            xfill True
-            yfill True
-            spacing 15
+        for row in (0, 2):
+            hbox:
+                spacing 14
+                xfill True
+                for choice in choices[row:row + 2]:
+                    $ intent_label = choice.get("intent", "")
+                    $ choice_text = choice.get("text", "")
+                    button:
+                        xsize 803
+                        ypadding 15
+                        xpadding 26
+                        background GOTH_BTN
+                        hover_background GOTH_BTN_HOVER
+                        action [Stop("voice_sfx"), Return((intent_label, choice_text))]
+                        text "[choice_text]":
+                            font GOTH_FONT_BODY
+                            size 20
+                            color GOTH_TEXT_SOFT
+                            hover_color GOTH_GOLD
+                            yalign 0.5
+                            line_spacing 3
 
-            for choice in choices:
-                $ intent_label = choice["intent"]
-                $ choice_text = choice["text"]
-                button:
-                    xfill True
-                    yfill True
-                    xpadding 15
-                    ypadding 8
-                    background "#1c2230"
-                    hover_background "#2f3a52"
-                    action Return(choice["intent"])
-                    text "[choice_text]" size 20 color "#e0e8f0" hover_color "#66c1e0" yalign 0.5
+
+# Backward compatibility alias
+screen conversation_choices(choices):
+    use conversation_ui(active_speaker_name, active_speaker_color, active_npc_line, choices)
+
 
 ################################################################################
-## Notebook Screen (Tabs: Characters, Timeline, Findings, Deaths)
+## Notebook
 ################################################################################
 default notebook_tab = "characters"
 
 screen notebook():
     modal True
     zorder 150
+
+    add GOTH_SCRIM
+
     frame:
         xalign 0.5
         yalign 0.5
-        xsize 1500
-        ysize 900
-        background "#12151deb"
-        xpadding 40
-        ypadding 30
+        xsize 1540
+        ysize 920
+        background GOTH_PANEL_FRAME
+        xpadding 44
+        ypadding 34
 
         vbox:
-            spacing 15
+            spacing 14
             xfill True
 
-            # Header with Tabs and Close Button
+            # ─── Header ───
             hbox:
                 xfill True
-                text "ADRIAN'S NOTEBOOK" size 32 bold True color "#ffffff"
+                yalign 0.5
 
-                hbox:
-                    spacing 15
-                    textbutton "Characters" action SetScreenVariable("notebook_tab", "characters") text_size 22 text_color ("#66c1e0" if notebook_tab == "characters" else "#888888")
-                    textbutton "Timeline" action SetScreenVariable("notebook_tab", "timeline") text_size 22 text_color ("#66c1e0" if notebook_tab == "timeline" else "#888888")
-                    textbutton "Findings" action SetScreenVariable("notebook_tab", "findings") text_size 22 text_color ("#66c1e0" if notebook_tab == "findings" else "#888888")
-                    textbutton "Deaths" action SetScreenVariable("notebook_tab", "deaths") text_size 22 text_color ("#66c1e0" if notebook_tab == "deaths" else "#888888")
+                vbox:
+                    spacing 1
+                    text "The Notebook" style "goth_title" size 31
+                    text "Everything you carry back through the loop" style "goth_subtitle" size 17
 
-                textbutton "✕ Close" action Hide("notebook") text_size 24 text_color "#ff6666" xalign 1.0
+                textbutton "Close":
+                    action Hide("notebook")
+                    xalign 1.0
+                    yalign 0.5
+                    background GOTH_BTN_FLAT
+                    hover_background GOTH_BTN_HOVER
+                    xpadding 24
+                    ypadding 10
+                    text_style "goth_button_text"
+                    text_size 20
 
-            null height 5
+            add "goth_divider" xalign 0.5 xsize 1400
 
-            # Active Tab Content
+            # ─── Tabs ───
+            hbox:
+                spacing 9
+                xalign 0.0
+                for tab_id, tab_name in [("characters", "People"), ("timeline", "Timeline"), ("findings", "Evidence"), ("deaths", "Deaths")]:
+                    button:
+                        xpadding 30
+                        ypadding 11
+                        background (GOTH_TAB_ON if notebook_tab == tab_id else GOTH_TAB_OFF)
+                        hover_background GOTH_TAB_ON
+                        action SetScreenVariable("notebook_tab", tab_id)
+                        text "[tab_name]":
+                            font GOTH_FONT_DISPLAY_B
+                            size 21
+                            color (GOTH_GOLD if notebook_tab == tab_id else GOTH_TEXT_MUTE)
+                            hover_color GOTH_CREAM
+                            kerning 1.0
+
+            null height 4
+
+            # ─── Active tab ───
             if notebook_tab == "characters":
                 use notebook_characters_tab()
             elif notebook_tab == "timeline":
@@ -386,7 +657,8 @@ screen notebook():
             elif notebook_tab == "deaths":
                 use notebook_deaths_tab()
 
-## Notebook Tab: Characters
+
+## Notebook Tab: People
 screen notebook_characters_tab():
     $ conflicts_list = find_conflicts(game_state.known_facts, all_facts)
     viewport:
@@ -394,37 +666,82 @@ screen notebook_characters_tab():
         mousewheel True
         draggable True
         vbox:
-            spacing 20
+            spacing 14
             xfill True
 
             for char in CHARACTERS:
                 $ cname = get_character_display_name(char)
                 $ ctrust = game_state.trust.get(char, 0)
                 $ char_facts = [f for f in all_facts if f.char == char and f.id in game_state.known_facts]
-                # Check if this character has active conflicts
                 $ has_conflict = character_has_conflict(char, conflicts_list, all_facts)
 
                 frame:
                     xfill True
-                    background ("#241515" if has_conflict else "#1a202c")
-                    xpadding 25
-                    ypadding 18
+                    background (GOTH_PANEL_BLOOD if has_conflict else GOTH_LEAF)
+                    xpadding 26
+                    ypadding 20
+
                     vbox:
-                        spacing 8
+                        spacing 10
+
                         hbox:
                             xfill True
-                            text "[cname]" size 24 bold True color ("#ff8888" if has_conflict else "#66c1e0")
-                            text "Current Trust: [ctrust] / 3" size 20 color "#aaaaaa" xalign 1.0
+                            spacing 16
+                            yalign 0.5
+
+                            text "[cname]":
+                                font GOTH_FONT_DISPLAY_B
+                                size 25
+                                color char_tint(char)
+                                kerning 0.8
+
                             if has_conflict:
-                                text "  ⚠️ [CONTRADICTION DETECTED]" size 20 bold True color "#ff3333"
+                                frame:
+                                    background Solid(GOTH_BLOOD)
+                                    xpadding 11
+                                    ypadding 4
+                                    yalign 0.5
+                                    text "CONTRADICTS THEMSELF":
+                                        font GOTH_FONT_BODY_B
+                                        size 14
+                                        color GOTH_CREAM
+                                        kerning 1.4
+
+                            vbox:
+                                xalign 1.0
+                                spacing 3
+                                text "[trust_phrase(ctrust)]":
+                                    font GOTH_FONT_BODY_I
+                                    size 18
+                                    color GOTH_TEXT_SOFT
+                                    xalign 1.0
+                                hbox:
+                                    spacing 4
+                                    xalign 1.0
+                                    for i in range(1, TRUST_MAX + 1):
+                                        if i <= ctrust:
+                                            add Solid(GOTH_GOLD) xysize (22, 5)
+                                        else:
+                                            add Solid(GOTH_RAIL_DK) xysize (22, 5)
 
                         if char_facts:
                             vbox:
-                                spacing 4
+                                spacing 6
                                 for f in char_facts:
-                                    text "• [f.text]" size 18 color "#dddddd"
+                                    hbox:
+                                        spacing 12
+                                        add Solid(GOTH_GOLD_DIM) xysize (4, 4) yoffset 9
+                                        text "[f.text]":
+                                            font GOTH_FONT_BODY
+                                            size 19
+                                            color GOTH_TEXT_SOFT
+                                            line_spacing 4
                         else:
-                            text "• No statements recorded yet." size 18 italic True color "#777777"
+                            text "Nothing recorded. You have not made them talk yet.":
+                                font GOTH_FONT_BODY_I
+                                size 18
+                                color GOTH_TEXT_OFF
+
 
 ## Notebook Tab: Timeline
 screen notebook_timeline_tab():
@@ -433,35 +750,63 @@ screen notebook_timeline_tab():
         mousewheel True
         draggable True
         vbox:
-            spacing 15
+            spacing 14
             xfill True
 
-            text "Observed Character Positions" size 24 bold True color "#66c1e0"
+            text "Where you actually saw them — not where they claim to be.":
+                font GOTH_FONT_BODY_I
+                size 19
+                color GOTH_TEXT_MUTE
 
-            # Table for Day 1 and Day 2
             for d in [1, 2]:
                 frame:
                     xfill True
-                    background "#1a202c"
-                    xpadding 20
-                    ypadding 15
+                    background GOTH_LEAF
+                    xpadding 24
+                    ypadding 18
                     vbox:
-                        spacing 10
-                        text "DAY [d]" size 22 bold True color "#ffffff"
+                        spacing 11
+                        text "DAY [d]":
+                            font GOTH_FONT_DISPLAY_B
+                            size 22
+                            color GOTH_GOLD
+                            kerning 2.0
+
                         for s in SLOTS:
-                            $ s_upper = s.upper()
                             $ slot_obs = []
                             for c in CHARACTERS:
-                                $ pres_key = f"presence:seen:{c}:{run_state.positions[c][str(d)][s]}:{s}:{d}"
+                                $ pres_key = "presence:seen:" + c + ":" + run_state.positions[c][str(d)][s] + ":" + s + ":" + str(d)
                                 if pres_key in game_state.known_facts:
-                                    $ slot_obs.append(f"{get_character_display_name(c)} at {get_location_display_name(run_state.positions[c][str(d)][s])}")
-                            $ obs_str = "; ".join(slot_obs) if slot_obs else "Unvisited or no records."
+                                    $ slot_obs.append((c, get_location_display_name(run_state.positions[c][str(d)][s])))
                             hbox:
-                                xfill True
-                                text "[s_upper]:" size 20 bold True color "#aaaaaa" xsize 180
-                                text "[obs_str]" size 19 color "#dddddd"
+                                spacing 16
+                                text "[s.capitalize()]":
+                                    font GOTH_FONT_BODY_B
+                                    size 19
+                                    color GOTH_TEXT_MUTE
+                                    xsize 150
+                                if slot_obs:
+                                    vbox:
+                                        spacing 3
+                                        for c, where in slot_obs:
+                                            hbox:
+                                                spacing 8
+                                                text "[get_character_display_name(c)]":
+                                                    font GOTH_FONT_BODY_M
+                                                    size 19
+                                                    color char_tint(c)
+                                                text "in the [where]":
+                                                    font GOTH_FONT_BODY
+                                                    size 19
+                                                    color GOTH_TEXT_SOFT
+                                else:
+                                    text "you were not there":
+                                        font GOTH_FONT_BODY_I
+                                        size 18
+                                        color GOTH_TEXT_OFF
 
-## Notebook Tab: Findings
+
+## Notebook Tab: Evidence
 screen notebook_findings_tab():
     $ found_items = [f for f in all_facts if f.kind in ("finding", "world") and f.id in game_state.known_facts]
     viewport:
@@ -469,27 +814,54 @@ screen notebook_findings_tab():
         mousewheel True
         draggable True
         vbox:
-            spacing 15
+            spacing 13
             xfill True
-
-            text "Discovered Items & Documents" size 24 bold True color "#66c1e0"
 
             if found_items:
                 for item in found_items:
                     frame:
                         xfill True
-                        background "#1a202c"
-                        xpadding 20
-                        ypadding 12
+                        background (GOTH_PANEL_PLUM if item.exclusive else GOTH_LEAF)
+                        xpadding 24
+                        ypadding 17
                         vbox:
-                            spacing 5
+                            spacing 7
                             hbox:
-                                text "📄 [item.id]" size 20 bold True color ("#ffd700" if item.exclusive else "#66c1e0")
+                                spacing 14
+                                yalign 0.5
+                                text "[item.id]":
+                                    font GOTH_FONT_DISPLAY_B
+                                    size 21
+                                    color (GOTH_GOLD if item.exclusive else GOTH_TEXT_SOFT)
+                                    kerning 0.8
                                 if item.exclusive:
-                                    text "  [CRUCIAL EVIDENCE]" size 18 bold True color "#ff4444"
-                            text "[item.text]" size 19 color "#e0e0e0"
+                                    frame:
+                                        background Solid(GOTH_BLOOD)
+                                        xpadding 11
+                                        ypadding 4
+                                        yalign 0.5
+                                        text "DAMNING":
+                                            font GOTH_FONT_BODY_B
+                                            size 14
+                                            color GOTH_CREAM
+                                            kerning 1.6
+                            text "[item.text]":
+                                font GOTH_FONT_BODY
+                                size 20
+                                color GOTH_TEXT
+                                line_spacing 5
             else:
-                text "No items discovered yet. Search locations while occupants are elsewhere." size 20 italic True color "#777777"
+                frame:
+                    xfill True
+                    background GOTH_LEAF
+                    xpadding 26
+                    ypadding 24
+                    text "Nothing yet. Rooms only give up their secrets when nobody is standing in them — go where the others are not.":
+                        font GOTH_FONT_BODY_I
+                        size 20
+                        color GOTH_TEXT_MUTE
+                        line_spacing 5
+
 
 ## Notebook Tab: Deaths
 screen notebook_deaths_tab():
@@ -498,21 +870,166 @@ screen notebook_deaths_tab():
         mousewheel True
         draggable True
         vbox:
-            spacing 15
+            spacing 13
             xfill True
 
-            text "Death Memories & Sensory Fragments" size 24 bold True color "#66c1e0"
+            text "What you felt in the dark. Each death gives up one more detail.":
+                font GOTH_FONT_BODY_I
+                size 19
+                color GOTH_TEXT_MUTE
 
             if game_state.fragments_seen:
                 for idx, frag in enumerate(game_state.fragments_seen, 1):
                     frame:
                         xfill True
-                        background "#241515"
-                        xpadding 20
-                        ypadding 14
+                        background GOTH_PANEL_BLOOD
+                        xpadding 26
+                        ypadding 20
                         vbox:
-                            spacing 6
-                            text "DEATH #[idx]" size 20 bold True color "#ff5555"
-                            text "\"[frag]\"" size 20 italic True color "#ffffff"
+                            spacing 9
+                            text "DEATH [idx]":
+                                font GOTH_FONT_DISPLAY_B
+                                size 18
+                                color GOTH_BLOOD_HI
+                                kerning 2.4
+                            text "“[frag]”":
+                                font GOTH_FONT_DISPLAY_I
+                                size 23
+                                color GOTH_TEXT
+                                line_spacing 6
             else:
-                text "You have not died... yet." size 20 italic True color "#777777"
+                frame:
+                    xfill True
+                    background GOTH_LEAF
+                    xpadding 26
+                    ypadding 24
+                    text "You have not died yet.":
+                        font GOTH_FONT_BODY_I
+                        size 20
+                        color GOTH_TEXT_MUTE
+
+
+################################################################################
+## Cinematic Overlays
+################################################################################
+
+screen cinema_letterbox():
+    zorder 95
+    add Solid(GOTH_VOID) xysize (1920, 78) xalign 0.5 yalign 0.0
+    add Solid(GOTH_VOID) xysize (1920, 78) xalign 0.5 yalign 1.0
+
+
+screen heartbeat_flash():
+    zorder 90
+    add Solid("#b02a2a2e") xysize (1920, 1080)
+
+
+screen loop_splash_screen(loop_num, strain_val):
+    zorder 120
+    modal True
+
+    add Solid(GOTH_VOID) xysize (1920, 1080)
+    add "goth_vignette"
+
+    vbox:
+        align (0.5, 0.5)
+        spacing 0
+
+        text "RETURN BY DEATH":
+            font GOTH_FONT_DISPLAY_B
+            size 23
+            color GOTH_BLOOD_HI
+            kerning 11
+            xalign 0.5
+
+        null height 10
+        add "goth_divider" xalign 0.5 xsize 560
+        null height 16
+
+        text "LOOP [loop_num]":
+            font GOTH_FONT_DISPLAY_B
+            size 92
+            color GOTH_CREAM
+            kerning 10
+            xalign 0.5
+            outlines [(3, GOTH_VOID, 0, 0)]
+
+        null height 10
+
+        text "Day Two — seven in the morning":
+            font GOTH_FONT_DISPLAY_I
+            size 23
+            color GOTH_TEXT_MUTE
+            xalign 0.5
+
+        null height 44
+
+        # ─── Strain ───
+        frame:
+            xalign 0.5
+            background GOTH_PANEL_BLOOD
+            xpadding 44
+            ypadding 26
+            xsize 860
+
+            vbox:
+                spacing 14
+                xfill True
+
+                hbox:
+                    xfill True
+                    text "HAIRLINE FRACTURES":
+                        font GOTH_FONT_BODY_B
+                        size 15
+                        color GOTH_BLOOD_HI
+                        kerning 3.0
+                        yalign 0.5
+                    hbox:
+                        spacing 7
+                        xalign 1.0
+                        yalign 0.5
+                        for i in range(1, MAX_STRAIN + 1):
+                            if i <= strain_val:
+                                add Solid(GOTH_BLOOD_HI) xysize (54, 8)
+                            else:
+                                add Solid(GOTH_RAIL_DK) xysize (54, 8)
+
+                if strain_val <= 0:
+                    text "Your skin is still your own. The first thread has only just been cut.":
+                        font GOTH_FONT_DISPLAY_I
+                        size 21
+                        color GOTH_TEXT_SOFT
+                        line_spacing 5
+                elif strain_val == 1:
+                    text "Black fissures pulse under the skin of your left wrist, warm as a struck match.":
+                        font GOTH_FONT_DISPLAY_I
+                        size 21
+                        color GOTH_TEXT_SOFT
+                        line_spacing 5
+                elif strain_val == 2:
+                    text "The cracks have reached your elbow and they are climbing toward your throat. One more death ends you.":
+                        font GOTH_FONT_DISPLAY_I
+                        size 21
+                        color GOTH_TEXT
+                        line_spacing 5
+                else:
+                    text "You are coming apart. There is almost nothing left to bring back.":
+                        font GOTH_FONT_DISPLAY_I
+                        size 21
+                        color GOTH_BLOOD_HI
+                        line_spacing 5
+
+        null height 40
+
+        text "click to wake":
+            font GOTH_FONT_BODY_I
+            size 18
+            color GOTH_TEXT_OFF
+            kerning 2.0
+            xalign 0.5
+
+    button:
+        xfill True
+        yfill True
+        background None
+        action Return()

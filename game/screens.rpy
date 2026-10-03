@@ -355,55 +355,97 @@ screen main_menu():
     ## This ensures that any other menu screen is replaced.
     tag menu
 
-    add gui.main_menu_background
+    add gui.main_menu_background:
+        xalign 0.5
+        yalign 0.5
+        zoom 1.04
+    add Solid("#0d0809b0")
+    add "goth_vignette"
 
-    ## This empty frame darkens the main menu.
+    ## Gothic plate behind the navigation column.
     frame:
         style "main_menu_frame"
 
-    ## The use statement includes another screen inside this one. The actual
-    ## contents of the main menu are in the navigation screen.
     use navigation
 
     if gui.show_name:
 
         vbox:
             style "main_menu_vbox"
+            spacing 2
 
-            text "[config.name!t]":
+            text "THE":
+                style "main_menu_eyebrow"
+
+            text "Blackwood Manor":
                 style "main_menu_title"
 
-            text "[config.version]":
+            text "M Y S T E R Y":
+                style "main_menu_subtitle"
+
+            null height 10
+
+            text "One night. Five suspects. One bullet, and all the time in the world.":
+                style "main_menu_tagline"
+
+            text "v[config.version]":
                 style "main_menu_version"
 
 
 style main_menu_frame is empty
 style main_menu_vbox is vbox
 style main_menu_text is gui_text
-style main_menu_title is main_menu_text
-style main_menu_version is main_menu_text
 
 style main_menu_frame:
-    xsize 420
+    xsize 460
     yfill True
-
-    background "gui/overlay/main_menu.png"
+    background Frame("images/ui/gen/panel_deep.png", 10, 10)
 
 style main_menu_vbox:
     xalign 1.0
-    xoffset -30
-    xmaximum 1200
+    xoffset -70
+    xmaximum 1250
     yalign 1.0
-    yoffset -30
+    yoffset -70
 
 style main_menu_text:
     properties gui.text_properties("main_menu", accent=True)
 
+style main_menu_eyebrow:
+    font GOTH_FONT_BODY_M
+    size 22
+    color GOTH_TEXT_MUTE
+    kerning 11
+    xalign 1.0
+
 style main_menu_title:
-    properties gui.text_properties("title")
+    font GOTH_FONT_DISPLAY_B
+    size 92
+    color GOTH_CREAM
+    kerning 1
+    xalign 1.0
+    outlines [(4, GOTH_VOID, 0, 2)]
+
+style main_menu_subtitle:
+    font GOTH_FONT_DISPLAY_B
+    size 36
+    color GOTH_GOLD
+    kerning 6
+    xalign 1.0
+    outlines [(3, GOTH_VOID, 0, 1)]
+
+style main_menu_tagline:
+    font GOTH_FONT_DISPLAY_I
+    size 22
+    color GOTH_TEXT_SOFT
+    xalign 1.0
+    outlines [(2, GOTH_VOID, 0, 1)]
 
 style main_menu_version:
-    properties gui.text_properties("version")
+    font GOTH_FONT_BODY
+    size 15
+    color GOTH_TEXT_OFF
+    xalign 1.0
 
 
 ## Game Menu screen ############################################################

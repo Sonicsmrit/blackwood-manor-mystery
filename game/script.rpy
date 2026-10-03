@@ -1,4 +1,4 @@
-## Return by Death Manor - Main Script
+## Return by Death Manor - Main Script (Cinematic Edition)
 init offset = 2
 
 init python:
@@ -13,7 +13,7 @@ init python:
     from engine.constants import (
         PLAYER_NAME, DAYS, SLOTS, LOCATIONS, ACTIONS_PER_SLOT,
         CONVO_MAX_TURNS, MAX_STRAIN, TRUST_MIN, TRUST_MAX,
-        CHARACTERS, TOPICS, BASE_LOCATIONS, AGENDAS
+        CHARACTERS, TOPICS, BASE_LOCATIONS, AGENDAS, DEATH_FRAGMENTS
     )
     from engine.state import RunState, GameState, new_game_state, reset_loop
     from engine.generator import generate_run
@@ -22,71 +22,195 @@ init python:
     from engine.dialogue import generate_intents, apply_intent
     from engine.solver import solve
     from bridge import get_character_display_name, get_location_display_name
-    from llm import generate_dialogue_fallback
+    from llm import generate_dialogue_fallback, get_fallback_data, generate_dialogue
+
+    # Register voice blip sound channel
+    renpy.music.register_channel("voice_sfx", mixer="sfx", loop=True)
+
+    def voice_bleep_callback(event, interact=True, **kwargs):
+        if not interact:
+            return
+        if event == "show":
+            spk = getattr(renpy.store, "current_voice_speaker", "adrian")
+            vfile = "audio/voice_" + str(spk) + ".wav"
+            if renpy.loadable(vfile):
+                renpy.sound.play(vfile, channel="voice_sfx", loop=True)
+        elif event in ("slow_done", "end"):
+            renpy.sound.stop(channel="voice_sfx")
+
+    def build_conversation_context(char, game_state, run_state, all_facts, present_names):
+        """Construct detailed narrative and character context for the LLM."""
+        day = game_state.current_day
+        slot = game_state.current_slot
+        loc = game_state.current_location
+        loc_name = get_location_display_name(loc)
+        loop_no = game_state.loop_no
+        strain = game_state.strain
+        is_killer = (char == run_state.killer)
+        agenda_info = AGENDAS.get(run_state.agenda, {})
+
+        secret_explanations = {
+            "lingering": "You linger in the parlor after sunset when you should be outside, secretly watching the family.",
+            "unsent_letters": "You keep a hidden bundle of desperate, unsent love letters expressing painful obsession.",
+            "night_visits": "You creep down to the parlor or cellar in the dead of night to check on locked strongboxes.",
+            "diary": "You keep a locked diary chronicling the family's crushing debts, ruin, and shame.",
+            "phone_calls": "You make clandestine calls from the study to unknown contacts outside the valley.",
+            "skimming_pills": "You secretly skim pharmaceutical morphine and sedatives from the clinic supply case.",
+            "pawned_watch": "You secretly pawned the late master's gold watch to cover personal debts.",
+            "drinking": "You hide bottles of cheap gin in the kitchen pantry to numb your grief and fear.",
+            "stolen_silver": "You hid several heavy silver dessert spoons behind a loose pantry wainscot.",
+            "eavesdropping": "You listen at heating vents and keyholes to learn the family's dark secrets."
+        }
+
+        char_secret_key = run_state.secrets.get(char, "")
+        char_secret_desc = secret_explanations.get(char_secret_key, "You harbor a private, shameful secret.")
+
+        # Topics this character has already given up, so they react to being
+        # asked twice instead of repeating themselves verbatim.
+        discussed = sorted({
+            f.topic for f in all_facts
+            if f.char == char and f.id in game_state.known_facts and getattr(f, "topic", None)
+        })
+
+        scene_desc = {
+            "day": day,
+            "slot": slot,
+            "location": loc_name,
+            "present_characters": present_names,
+            "loop_number": loop_no,
+            "strain": strain,
+            "deaths": len(game_state.fragments_seen),
+            "discussed_topics": discussed,
+            "bullet_carried": game_state.bullet_available,
+            "is_killer": is_killer
+        }
+
+        if is_killer:
+            cause = agenda_info.get("cause", "sabotage")
+            motive = agenda_info.get("motive", "")
+            slips = ", ".join(agenda_info.get("slip_keywords", []))
+            scene_desc["secret_truth"] = (
+                "KILLER: You are the murderer who orchestrated the fatal crash by " + str(cause) + ". "
+                "Your hidden motive is: " + str(motive) + ". "
+                "If pressed on the crash or motive, you might accidentally slip keywords like: " + slips + ". "
+                "Tonight you plan to finish Adrian off. Maintain your composure, but show subtle cracks if cornered."
+            )
+        else:
+            scene_desc["secret_truth"] = (
+                "INNOCENT: You did NOT commit the murder or cause the crash. However, you are hiding this shameful secret: '" + str(char_secret_desc) + "'. "
+                "You are terrified of this secret being exposed, making you appear defensive or anxious when questioned."
+            )
+
+        return scene_desc
 
 # Disable rollback to maintain state consistency across loops
 define config.rollback_enabled = False
 
-# Character definitions
-define adrian = Character("Adrian", color="#ffffff")
-define marika_char = Character("Marika", color="#ff69b4")
-define elise_char = Character("Elise", color="#9370db")
-define vance_char = Character("Nurse Vance", color="#20b2aa")
-define hargrove_char = Character("Hargrove", color="#daa520")
-define odile_char = Character("Odile", color="#bc8f8f")
-define unknown = Character("???", color="#888888")
-define death_narrator = Character(None, what_italic=True, what_size=28, what_color="#ffffff")
+# Character definitions with rich colors & voice bleep styling
+define adrian = Character("Adrian", color=GOTH_C_ADRIAN, callback=voice_bleep_callback)
+define marika_char = Character("Marika", color=GOTH_C_MARIKA, callback=voice_bleep_callback)
+define elise_char = Character("Elise", color=GOTH_C_ELISE, callback=voice_bleep_callback)
+define vance_char = Character("Nurse Vance", color=GOTH_C_VANCE, callback=voice_bleep_callback)
+define hargrove_char = Character("Hargrove", color=GOTH_C_HARGROVE, callback=voice_bleep_callback)
+define odile_char = Character("Odile", color=GOTH_C_ODILE, callback=voice_bleep_callback)
+define unknown = Character("???", color=GOTH_C_UNKNOWN)
+define death_narrator = Character(None, what_italic=True, what_size=30, what_color=GOTH_BLOOD_HI)
+define thought = Character(None, what_italic=True, what_size=25, what_color=GOTH_TEXT_SOFT)
 
-# Background images
+# ─── Background images using the mansion pack (1920×1080) ────────────────────
+# Parlor: Grand entrance hall
+image bg parlor = "images/bg/mansion/interior_entrance_day.png"
+image bg parlor_evening = "images/bg/mansion/interior_entrance_evening.png"
+image bg parlor_night = "images/bg/mansion/interior_entrance_night.png"
+
+# Study: Hallway with windows and curtains
+image bg study = "images/bg/mansion/inthallway2_day.png"
+image bg study_evening = "images/bg/mansion/inthallway2_evening.png"
+image bg study_night = "images/bg/mansion/inthallway2_night.png"
+
+# Kitchen: Basement / servants' working area
+image bg kitchen = "images/bg/mansion/basement1.png"
+image bg kitchen_evening = Transform("images/bg/mansion/basement1.png", matrixcolor=BrightnessMatrix(-0.15) * TintMatrix("#e8c87a"))
+image bg kitchen_night = Transform("images/bg/mansion/basement1.png", matrixcolor=BrightnessMatrix(-0.3) * TintMatrix("#7080a0"))
+
+# Upstairs: Bedroom
+image bg upstairs = "images/bg/mansion/bedroom01_day.png"
+image bg upstairs_evening = "images/bg/mansion/bedroom01_evening.png"
+image bg upstairs_night = Transform("images/bg/mansion/bedroom01_day.png", matrixcolor=BrightnessMatrix(-0.4) * TintMatrix("#5060a0"))
+
+# Gate: Backyard / exterior
+image bg gate = "images/bg/mansion/backyard_day1.png"
+image bg gate_evening = "images/bg/mansion/backyard_evening.png"
+image bg gate_night = "images/bg/mansion/backyard_night1.png"
+
+# Utility colors
 image white = "#ffffff"
 image black = "#000000"
-image bg parlor = "images/bg/ROOM1.png"
-image bg study = Transform("images/bg/ROOM3.png", matrixcolor=BrightnessMatrix(-0.08) * TintMatrix("#f5e6d0"))
-image bg kitchen = Transform("images/bg/ROOM2.png", matrixcolor=TintMatrix("#e4f2e4"))
-image bg upstairs = "images/bg/ROOM4.png"
-image bg gate = Transform("images/bg/ROOM4.png", matrixcolor=TintMatrix("#7588a8") * BrightnessMatrix(-0.15))
 
-# Character sprites
-# Marika
-image marika neutral = "images/characters/marika/base/Marika_base.webp"
-image marika calm = "images/characters/marika/base/Marika_okay.webp"
-image marika angry = "images/characters/marika/base/Marika_angry.webp"
-image marika sly = "images/characters/marika/base/Marika_smirk.webp"
-image marika sad = "images/characters/marika/base/Marika_sad.webp"
-image marika tearful = "images/characters/marika/base/Marika_cry.webp"
-image marika shy = "images/characters/marika/base/Marika_shy.webp"
-image marika apologetic = "images/characters/marika/base/Marika_sorry.webp"
-image marika creepy = "images/characters/marika/base/Marika_creepy.webp"
+# ─── Character sprites (normalized sizes with zoom) ──────────────────────────
+# Marika (832x1280) — scale to fit screen nicely
+image marika neutral = Transform("images/characters/marika/base/Marika_base.webp", zoom=0.55)
+image marika calm = Transform("images/characters/marika/base/Marika_okay.webp", zoom=0.55)
+image marika angry = Transform("images/characters/marika/base/Marika_angry.webp", zoom=0.55)
+image marika sly = Transform("images/characters/marika/base/Marika_smirk.webp", zoom=0.55)
+image marika sad = Transform("images/characters/marika/base/Marika_sad.webp", zoom=0.55)
+image marika tearful = Transform("images/characters/marika/base/Marika_cry.webp", zoom=0.55)
+image marika shy = Transform("images/characters/marika/base/Marika_shy.webp", zoom=0.55)
+image marika apologetic = Transform("images/characters/marika/base/Marika_sorry.webp", zoom=0.55)
+image marika creepy = Transform("images/characters/marika/base/Marika_creepy.webp", zoom=0.55)
 
-# Elise
-image elise neutral = "images/characters/elise/GIRL_FULL1.png"
-image elise bloodied = "images/characters/elise/GIRL_FULL3.png"
+# Elise (712x1208)
+image elise neutral = Transform("images/characters/elise/GIRL_FULL1.png", zoom=0.58)
+image elise talking = Transform("images/characters/elise/GIRL_FULL2.png", zoom=0.58)
+image elise somber = Transform("images/characters/elise/GIRL_FULL5.png", zoom=0.58)
+image elise angry = Transform("images/characters/elise/GIRL_FULL9.png", zoom=0.58)
+image elise distressed = Transform("images/characters/elise/GIRL_FULL13.png", zoom=0.58)
+image elise bloodied = Transform("images/characters/elise/GIRL_FULL3.png", zoom=0.58)
 
-# Vance
-image vance neutral = "images/characters/vance/NURSE_FULL1.png"
-image vance bloodied = "images/characters/vance/NURSE_FULL3.png"
+# Vance (690x1531)
+image vance neutral = Transform("images/characters/vance/NURSE_FULL1.png", zoom=0.47)
+image vance talking = Transform("images/characters/vance/NURSE_FULL2.png", zoom=0.47)
+image vance clinical = Transform("images/characters/vance/NURSE_FULL1.png", matrixcolor=BrightnessMatrix(-0.08) * SaturationMatrix(0.85), zoom=0.47)
+image vance bloodied = Transform("images/characters/vance/NURSE_FULL3.png", zoom=0.47)
 
-# Hargrove
-image hargrove neutral = "images/characters/hargrove/BUTLER_FULL1.png"
-image hargrove bloodied = "images/characters/hargrove/BUTLER_FULL3.png"
+# Hargrove (548x1470)
+image hargrove neutral = Transform("images/characters/hargrove/BUTLER_FULL1.png", zoom=0.49)
+image hargrove talking = Transform("images/characters/hargrove/BUTLER_FULL2.png", zoom=0.49)
+image hargrove grave = Transform("images/characters/hargrove/BUTLER_FULL1.png", matrixcolor=BrightnessMatrix(-0.1) * TintMatrix("#d0d8e8"), zoom=0.49)
+image hargrove bloodied = Transform("images/characters/hargrove/BUTLER_FULL3.png", zoom=0.49)
 
-# Odile
-image odile neutral = "images/characters/odile/MAID_FULL1.png"
-image odile bloodied = "images/characters/odile/MAID_FULL3.png"
+# Odile (590x1389)
+image odile neutral = Transform("images/characters/odile/MAID_FULL1.png", zoom=0.51)
+image odile talking = Transform("images/characters/odile/MAID_FULL2.png", zoom=0.51)
+image odile nervous = Transform("images/characters/odile/MAID_FULL2.png", matrixcolor=BrightnessMatrix(-0.05) * TintMatrix("#f8eae0"), zoom=0.51)
+image odile bloodied = Transform("images/characters/odile/MAID_FULL3.png", zoom=0.51)
 
-# Transforms
+# ─── Transforms & Transitions ────────────────────────────────────────────────
 transform sprite_standing:
     xalign 0.5
     yalign 1.0
+    yoffset -20
 
-transform death_shake:
-    linear 0.05 xoffset -15
-    linear 0.05 xoffset 15
-    linear 0.05 xoffset -10
-    linear 0.05 xoffset 10
-    linear 0.05 xoffset 0
+transform sprite_left:
+    xalign 0.25
+    yalign 1.0
+    yoffset -20
 
-# Game variables
+transform sprite_right:
+    xalign 0.75
+    yalign 1.0
+    yoffset -20
+
+transform camera_creep:
+    zoom 1.0
+    ease 4.0 zoom 1.08 yoffset -30
+
+transform snap_focus:
+    easein 0.2 zoom 1.15 yoffset -50
+
+define death_shake = Move((20, 0), (-20, 0), .04, bounce=True, repeat=True, delay=.3)
+
+# ─── Game variables ──────────────────────────────────────────────────────────
 default run_state = None
 default game_state = None
 default all_facts = []
@@ -94,10 +218,60 @@ default current_loc_presence = {}
 default chosen_loc = "parlor"
 default active_speaker = "marika"
 default active_speaker_name = "Marika"
-default active_speaker_color = "#ff69b4"
+default active_speaker_color = GOTH_C_MARIKA
 default active_npc_line = ""
 default active_choices = []
 default active_mood = "neutral"
+default active_expression = "neutral"
+default convo_history = []
+default chosen_choice_text = ""
+default current_voice_speaker = "adrian"
+default npc_char = marika_char
+
+# Narrative state (not part of the deterministic engine)
+default marika_intro_warm = False
+default confidant = None
+default confided_attempt = False
+
+# Weapons are physical objects, so they reset with the loop. Only Adrian's
+# knowledge of where they are carries over, which is the whole point.
+default revolver_found = False
+default revolver_key_found = False
+default drawer_examined = False
+default knife_found = False
+default knife_taken_back = False
+default after_hours_active = False
+
+# Cover-up speakers are assigned by role at runtime, since any of the five
+# may be the one on the floor. Declared here so they always resolve.
+default lead_char = elise_char
+default medic_char = vance_char
+default steady_char = hargrove_char
+default taker_char = odile_char
+
+################################################################################
+## Helper Functions
+################################################################################
+init python:
+    def get_bg_image_name(loc, slot):
+        """Return the Ren'Py image name for a location at the current time slot."""
+        if slot == "evening":
+            return "bg " + loc + "_evening"
+        else:
+            return "bg " + loc
+
+    def update_npc_expression(char, expr):
+        """Update the on-screen character sprite to match the chosen facial model."""
+        valid = {
+            "marika": ["neutral", "calm", "angry", "sly", "sad", "tearful", "shy", "apologetic", "creepy"],
+            "elise": ["neutral", "talking", "somber", "angry", "distressed", "bloodied"],
+            "vance": ["neutral", "talking", "clinical", "bloodied"],
+            "hargrove": ["neutral", "talking", "grave", "bloodied"],
+            "odile": ["neutral", "talking", "nervous", "bloodied"]
+        }
+        char_valid = valid.get(char, ["neutral"])
+        tag = expr if expr in char_valid else "neutral"
+        renpy.show(char + " " + tag, at_list=[sprite_standing])
 
 ################################################################################
 ## Game Initialization & Flow
@@ -109,78 +283,206 @@ label start:
         run_state = generate_run(seed_val)
         all_facts = run_state.facts
         game_state = new_game_state(run_state, start_day=1)
+        _preferences.text_cps = 38
 
-    # 2. Begin scripted Day 1 introduction
+    # 2. Begin cinematic prologue and Day 1 introduction
     jump day1_intro
 
 ################################################################################
-## Day 1 Scripted Introduction
+## Day 1 Scripted Introduction (Cinematic Edition)
 ################################################################################
 label day1_intro:
+    show screen cinema_letterbox
     scene black with fade
     pause 1.0
 
-    # Beat 1: Hospital wake
-    "A sterile white ceiling. The smell of antiseptic and wet stone."
-    "Your skull throbs behind your eyes with dull, rhythmic agony."
+    # ─── Prologue: the crash, remembered wrong ───────────────────────────────
+    play sound "audio/thunder.wav"
+    pause 0.5
+    "Rain. Not falling so much as thrown, in fistfuls, against curved sheet metal."
+    "Headlights find nothing but pine and fog. The road ends three feet past the bumper and begins again only when you are already on it."
+
+    thought "Father is driving. Mother has her hand flat on the dashboard, the way she does when she will not say she is frightened."
+
+    pause 0.5
+    with death_shake
+    "Something gives way under the floorboard. A small sound. Almost polite."
+    "The brake pedal goes to the floor and stays there, soft as a held breath."
+    "Then the gravel lets go of the tyres, and the world tilts, and the headlights swing out into nothing at all."
+
+    play sound "audio/strain_burn.wav"
+    scene white with Dissolve(0.15)
+    with death_shake
+    scene black with Dissolve(0.8)
+
+    "Glass opens around you like something blooming. Then a silence so complete it feels deliberate."
+    pause 1.5
+
+    # ─── The hospital ────────────────────────────────────────────────────────
+    play sound "audio/heartbeat.wav"
+    pause 1.0
+
+    "White ceiling. Antiseptic, old linen, and underneath it the iron smell of yourself."
+    "There is a throb behind your eyes keeping time with your pulse, patient and unhurried, as though it intends to go on for years."
 
     show marika shy at sprite_standing with dissolve
-    marika_char "Adrian? You're awake... Thank God. The doctors said you might not open your eyes for days."
+    marika_char "Adrian...?{w=0.4} Oh — oh God. Look at me. You're awake, you're actually—"
 
-    adrian "Who... who are you?"
+    "A young woman. Pale gold hair, slept-in clothes, a chair pulled so close to the bed its legs have scuffed the floor."
+    thought "She has been here a long time. Days, maybe. I have never seen her before in my life."
 
+    adrian "Who are you?"
+
+    show marika tearful at sprite_standing
+    "She stops as if she has walked into glass. Her hand is already halfway to your arm and it stays there, in the air, going nowhere."
+    marika_char "Don't.{w=0.3} Don't look at me like that. Please. It's Marika. Two years, Adrian, we've — "
     show marika sad at sprite_standing
-    marika_char "It's me. Marika. Don't you remember me? We've been together for two years..."
-    marika_char "The doctor warned me your memories might be scattered after the crash. But you're alive. That's all that matters."
+    marika_char "They said your head. They said the memories might not... They said you might not."
 
-    # Beat 2: The drive
+    thought "She is saying my name like it is a rope she is trying to throw me."
+
+    menu:
+        "I'm sorry. I don't know you.":
+            $ marika_intro_warm = False
+            adrian "I'm sorry. I'm — I'm looking right at you and there's nothing there."
+            show marika tearful at sprite_standing
+            marika_char "Then I'll just have to be new to you. That's all. That's all it is."
+            thought "She smiled when she said it. That was the worst part."
+
+        "Tell me something only you would know.":
+            $ marika_intro_warm = False
+            adrian "Then tell me something. Something only you'd know."
+            show marika sad at sprite_standing
+            marika_char "You sign your name with the 'n' trailing off, like you got bored of it halfway. You've done it since you were nine."
+            thought "I don't remember doing it. But my hand already knows she is right, and that is somehow worse than not knowing at all."
+
+        "Stay. Please — just stay where I can see you.":
+            $ marika_intro_warm = True
+            adrian "Don't go. I don't know you, but — don't go. Not yet."
+            show marika calm at sprite_standing
+            marika_char "I'm not going anywhere. I haven't, the whole time. Ask the nurses, they've gotten quite sick of me."
+            thought "Her shoulders came down about an inch. I did that. I don't know her name well enough to have done that."
+
+    # ─── The road up ─────────────────────────────────────────────────────────
     scene bg gate with fade
     show marika calm at sprite_standing with dissolve
-    "The journey through the fog was quiet. Winding pine roads, steep drops into mist, and stone gates."
-    marika_char "This is your family manor. Elise brought you back as soon as the hospital signed the discharge."
+    "The drive takes most of a day. Black pine, iron railings, and a drop on the left that the road pretends not to notice."
+    thought "Somewhere on a pass exactly like this one, my parents stopped existing. Nobody in this car mentions it."
+    marika_char "Blackwood. Your family's house. Your sister wanted you out of that hospital the hour you opened your eyes."
+    marika_char "She didn't ask what the doctors wanted. She doesn't, really."
 
-    # Beat 3: Arrival & Elise confrontation
+    "The gates come out of the fog like a row of spears someone has planted and forgotten."
+
+    # ─── Arrival: Elise and Marika, in front of each other ───────────────────
     scene bg parlor with fade
-    show elise neutral at sprite_standing with dissolve
-    elise_char "You brought him back. Finally."
-    show marika shy at sprite_standing
-    marika_char "Elise, please. He needs quiet. The head injury—"
-    show elise neutral at sprite_standing
-    elise_char "I know what my brother needs. And you know the arrangement, Marika: you are not permitted inside past sunset. Wait at the gate."
-    show marika sad at sprite_standing
-    marika_char "Elise..."
-    show elise neutral at sprite_standing
-    elise_char "The gate, Marika. Now."
+    show elise somber at sprite_right with dissolve
+    "The hall swallows sound. Portraits three generations deep look down with the particular disapproval of people who were painted being disappointed."
+    "At the foot of the staircase, a young woman in mourning black has been standing long enough that she has stopped pretending not to wait."
+
+    elise_char "You brought him back."
+    show elise angry at sprite_right
+    elise_char "Eleven days, and you brought him back on the eleventh. I'm sure there's a reason."
+
+    show marika shy at sprite_left with dissolve
+    marika_char "He couldn't be moved. The pressure in his skull — Elise, he couldn't sit up without—"
+    show elise angry at sprite_right
+    elise_char "Don't tell me about my brother's skull."
+
+    "Silence. Somewhere above, a clock works through its mechanism without hurrying."
+
+    show elise talking at sprite_right
+    elise_char "You know the arrangement. Not past the foyer after dark. The gate lodge is dry and it is more than you are owed."
+    show marika sad at sprite_left
+    marika_char "He doesn't remember the crash. He doesn't remember me. And you want me at the end of a drive in November."
+    show elise angry at sprite_right
+    elise_char "I want you where I can account for you."
+
+    thought "They are doing this in front of me. Neither of them has looked at me since I came through the door."
+    thought "Whatever I was to these two, I was something they fought over. That is the first real thing I've learned about myself."
+
     hide marika with dissolve
+    pause 0.4
 
-    # Beat 4: Vance
-    show vance neutral at sprite_standing with dissolve
-    vance_char "Adrian. I am Nurse Vance. Elise retained my services through the regional clinic."
-    vance_char "Two blue capsules after meals. Total bed rest when the dizziness strikes. No excursions beyond the grounds."
+    show elise somber at sprite_standing with dissolve
+    "When the door closes, something in her face comes loose for a moment, and then is put back."
+    elise_char "Welcome home, brother."
+    elise_char "You'll find it much as you left it. Colder, perhaps. We've been economising."
 
-    # Beat 5: Hargrove
+    adrian "Elise — do I call you Elise?"
+
+    show elise distressed at sprite_standing
+    "She looks at you then. Properly, for the first time."
+    elise_char "...You called me Lise. When we were small. You were the only one permitted."
+    show elise somber at sprite_standing
+    elise_char "Call me Elise. It will be less strange for both of us."
+    hide elise with dissolve
+
+    thought "She lied. It would not have been less strange for her."
+
+    # ─── Vance, intercepting ─────────────────────────────────────────────────
+    show vance clinical at sprite_standing with dissolve
+    "A woman in grey is waiting at the turn of the stair with the air of someone who has been timing you."
+    vance_char "Nurse Vance. Your sister retained me through the clinic at Ardmore. Sit down before you fall down — no, there. The light's better."
+    "Cold fingers at your jaw, turning your face toward the window. She looks at one pupil, then the other, and her mouth tightens by perhaps a millimetre."
+    vance_char "Temporal contusion, retrograde amnesia, and a household with the emotional climate of a knife drawer. Two blue capsules after meals."
+    vance_char "No stairs alone. No cliffs. No arguments. I can mend the first two."
     hide vance with dissolve
-    show hargrove neutral at sprite_standing with dissolve
-    hargrove_char "Welcome home, young master Adrian. Forty years I have served your family; the house felt hollow without you."
-    hargrove_char "Dinner is prepared in the kitchen. Do ring if the draft in your quarters becomes troublesome."
 
-    # Beat 6: Odile
+    thought "She did not say 'you'll be fine.' I notice people who don't say that."
+
+    # ─── Hargrove, who knew him ──────────────────────────────────────────────
+    show hargrove talking at sprite_standing with dissolve
+    "An old man in a tailcoat comes down the corridor far too quickly for his knees and stops himself a respectful distance away, visibly."
+    hargrove_char "Young master Adrian.{w=0.4} Forgive me. Forgive me, sir, give an old fool a moment."
+    "He gets his face under control the way a man closes a drawer."
+    hargrove_char "Forty-one years I've kept this hall. These past weeks it has been a mausoleum with the lamps left on."
+
+    adrian "I'm sorry — I don't..."
+
+    show hargrove grave at sprite_standing
+    hargrove_char "No, sir. Of course not. It is no failing of yours."
+    hargrove_char "You taught me to use a fountain pen, once. You were nine and insisted I was holding it like a spade. You were quite right."
+    show hargrove talking at sprite_standing
+    hargrove_char "There is broth in the kitchen. It will be there whether you want it or not. That is how broth works."
     hide hargrove with dissolve
-    show odile neutral at sprite_standing with dissolve
-    odile_char "Tea for you, sir. Chamomile... just as your late mother preferred."
-    odile_char "I have turned down the sheets upstairs, sir. If you need anything... anything at all, do call."
+
+    thought "Forty-one years. He would know everything that happens in this house."
+    thought "He would also know how to make certain that nobody found out."
+
+    # ─── Odile, who is not supposed to be noticed ────────────────────────────
+    show odile nervous at sprite_standing with dissolve
+    "A maid is in the doorway with a tray, and has clearly been there for some while, waiting for a gap in the conversation that never came."
+    odile_char "Tea, sir. Chamomile — the late mistress took it so, in the library, in the evenings. I thought..."
+    "She does not finish the thought. She sets the tray down and does not quite leave."
+    odile_char "The east wing's aired, sir. And if you hear anything in the walls at night, it's only the pipes."
+    odile_char "It's only ever the pipes."
+
+    adrian "Has it been the pipes recently?"
+
+    show odile nervous at sprite_standing
+    "She looks at the doorway behind her before she answers, which is itself an answer."
+    odile_char "...I couldn't say, sir."
     hide odile with dissolve
 
-    # Beat 7: Night 1
-    scene bg upstairs with fade
-    "Night settles over the manor with oppressive weight."
-    "The grandfather clock in the stairwell ticks with slow, deliberate hollow knocks."
-    "Safe for now. But in the quiet darkness, something cold coils at the back of your mind."
+    # ─── Night one ───────────────────────────────────────────────────────────
+    scene bg upstairs_night with fade
+    play sound "audio/clock_tick.wav"
+    "Night comes down over the ridge like a lid."
+    "In the stairwell, the grandfather clock takes midnight apart one stroke at a time."
 
-    # Day 1 Investigation Loop
-    "Morning arrives through dust-streaked leaded windows."
+    play sound "audio/clock_tick.wav"
+    thought "Five people under this roof. Every one of them has looked at me today as though checking a sum."
+    thought "Somebody cut the brake lines on my father's car."
+    thought "And then that somebody came home, and ate dinner, and said goodnight to me in the hall."
+
+    pause 1.0
+    hide screen cinema_letterbox
+
+    # Reveal HUD and begin Day 1 investigation
+    "Morning comes thin and grey through diamond panes, and the house is already awake."
     show screen hud
     jump day_slot_start
+
 
 ################################################################################
 ## Main Day & Slot Loop
@@ -200,8 +502,20 @@ label day_slot_start:
     $ chosen_loc = _return
     $ game_state.current_location = chosen_loc
 
-    # Set background for the location
-    if chosen_loc == "parlor":
+    # Set background for the location with time-of-day variant
+    $ _bg_tag = get_bg_image_name(chosen_loc, game_state.current_slot)
+
+    if chosen_loc == "parlor" and game_state.current_slot == "evening":
+        scene bg parlor_evening with dissolve
+    elif chosen_loc == "study" and game_state.current_slot == "evening":
+        scene bg study_evening with dissolve
+    elif chosen_loc == "kitchen" and game_state.current_slot == "evening":
+        scene bg kitchen_evening with dissolve
+    elif chosen_loc == "upstairs" and game_state.current_slot == "evening":
+        scene bg upstairs_evening with dissolve
+    elif chosen_loc == "gate" and game_state.current_slot == "evening":
+        scene bg gate_evening with dissolve
+    elif chosen_loc == "parlor":
         scene bg parlor with dissolve
     elif chosen_loc == "study":
         scene bg study with dissolve
@@ -217,7 +531,7 @@ label day_slot_start:
         present = current_loc_presence[chosen_loc]
         # Record who is seen
         for c in present:
-            pres_fact = f"presence:seen:{c}:{chosen_loc}:{game_state.current_slot}:{game_state.current_day}"
+            pres_fact = "presence:seen:" + c + ":" + chosen_loc + ":" + game_state.current_slot + ":" + str(game_state.current_day)
             game_state.known_facts.add(pres_fact)
 
         # Record absences (if character claimed to be here but is absent)
@@ -231,7 +545,7 @@ label day_slot_start:
         for c in CHARACTERS:
             claimed = routine_claims[c][game_state.current_slot]
             if claimed == chosen_loc and c not in present:
-                abs_fact = f"presence:absence:{c}:{chosen_loc}:{game_state.current_slot}:{game_state.current_day}"
+                abs_fact = "presence:absence:" + c + ":" + chosen_loc + ":" + game_state.current_slot + ":" + str(game_state.current_day)
                 game_state.known_facts.add(abs_fact)
 
     jump location_action_loop
@@ -240,7 +554,6 @@ label day_slot_start:
 ## Location Action Loop (2 Actions Per Slot)
 ################################################################################
 label location_action_loop:
-    # Check if actions remaining for this slot are exhausted
     if game_state.slot_actions_remaining <= 0:
         jump advance_slot
 
@@ -289,14 +602,54 @@ label execute_search:
         cur_loc = game_state.current_location
         present = current_loc_presence[cur_loc]
         findings = get_search_findings(cur_loc, game_state.current_slot, game_state.current_day, run_state.positions, all_facts, present)
-
-        # Check watching rule: if a character belongs here and is present
         watching_chars = [c for c in present if BASE_LOCATIONS.get(c) == cur_loc]
 
     if watching_chars:
         $ watcher_name = get_character_display_name(watching_chars[0])
-        "[watcher_name] is present in the room, keeping a watchful eye on you. You cannot search without drawing suspicion."
-    elif findings:
+        "[watcher_name] has not left, and has not stopped glancing over. Whatever is in this room will stay in it while you are being watched."
+        jump location_action_loop
+
+    # ─── Weapons are found, never given ──────────────────────────────────
+    # The revolver takes two unobserved searches in two different rooms:
+    # the key is in the study, the drawer is upstairs. The knife is easy,
+    # which is exactly why it is the wrong weapon.
+    if cur_loc == "study" and game_state.current_day == 2 and not revolver_key_found:
+        $ revolver_key_found = True
+        "Father's desk is a monument to a man who did not trust his own memory: every drawer labelled, every ledger cross-referenced, every key accounted for in a hand you half recognise as your own."
+        "Taped under the shallow left-hand drawer, where a man would put a thing he wanted findable but not found, there is a small flat brass key."
+        play sound "audio/select.wav"
+        thought "Bedside. He always said a locked drawer by the bed was the only honest piece of furniture in a house like this."
+        jump location_action_loop
+
+    if cur_loc == "upstairs" and game_state.current_day == 2 and not revolver_found:
+        if revolver_key_found:
+            $ revolver_found = True
+            $ game_state.bullet_available = True
+            play sound "audio/revolver_cock.wav"
+            "The brass key turns with a small, exact click, as though it has been waiting all year to be useful."
+            "Inside, on velvet gone stiff with age, wrapped in oilcloth: your father's service revolver. Cold. Heavier than it looks. Balanced like something designed by people who thought carefully about killing."
+            "You swing the cylinder out. One brass cartridge. One."
+            thought "One. He left one in it. I have spent all day not thinking about why a man would leave exactly one."
+            jump location_action_loop
+        else:
+            if not drawer_examined:
+                $ drawer_examined = True
+                "You go at the nightstand drawer with your fingers, then with a letter opener, then with both hands and your whole weight, and it does not give."
+                "The lock is small, flat, and older than you are. Forcing it would take a crowbar and a quarter of an hour, and you have neither."
+                thought "It needs its key. Father kept keys the way other men keep grudges — catalogued, and close to the thing they opened."
+            else:
+                "The drawer is exactly as locked as it was an hour ago. You check anyway, because you are the sort of man who checks."
+            jump location_action_loop
+
+    if cur_loc == "kitchen" and not knife_found and not knife_taken_back:
+        $ knife_found = True
+        play sound "audio/select.wav"
+        "The block by the range holds six knives and a gap where a seventh should be. The boning knife is in the drying rack, thin, slightly sprung, honed by someone who does it every day without thinking."
+        "You put it inside your coat. It sits badly there. It will keep sitting badly there."
+        thought "This is not the same as the revolver. A revolver is a decision made at a distance. This is a decision made with your hands."
+        jump location_action_loop
+
+    if findings:
         python:
             new_finds = [f for f in findings if f.id not in game_state.known_facts]
             for f in new_finds:
@@ -304,14 +657,14 @@ label execute_search:
                 game_state.notebook_entries.append(f.id)
 
         if new_finds:
-            "You search carefully through drawers, cabinets, and hidden recesses..."
+            "The room is empty and stays empty. You go through the drawers, the ledgers, the gap behind the mantel clock, with the unhurried thoroughness of a man who has run out of polite options."
             python:
                 for f in new_finds:
-                    renpy.say(None, "DISCOVERY: " + f.text)
+                    renpy.say(None, "{color=" + GOTH_GOLD + "}You find it.{/color} " + f.text)
         else:
-            "You search the room again, but find nothing beyond what you already cataloged."
+            "You go over it again anyway. It gives up nothing it has not already given up."
     else:
-        "You search carefully through the room, but uncover nothing of interest here."
+        "Nothing. Dust, old paper, and the particular silence of a room that has no opinion about you."
 
     jump location_action_loop
 
@@ -321,90 +674,97 @@ label execute_search:
 label start_conversation:
     python:
         speaker_roster = {
-            "marika": ("Marika", "#ff69b4"),
-            "elise": ("Elise", "#9370db"),
-            "vance": ("Nurse Vance", "#20b2aa"),
-            "hargrove": ("Hargrove", "#daa520"),
-            "odile": ("Odile", "#bc8f8f")
+            "marika": ("Marika", GOTH_C_MARIKA),
+            "elise": ("Elise", GOTH_C_ELISE),
+            "vance": ("Nurse Vance", GOTH_C_VANCE),
+            "hargrove": ("Hargrove", GOTH_C_HARGROVE),
+            "odile": ("Odile", GOTH_C_ODILE)
         }
         active_speaker_name, active_speaker_color = speaker_roster[active_speaker]
+        speaker_char_map = {
+            "marika": marika_char,
+            "elise": elise_char,
+            "vance": vance_char,
+            "hargrove": hargrove_char,
+            "odile": odile_char
+        }
+        npc_char = speaker_char_map[active_speaker]
         convo_turn = 0
+        convo_history = []
+        _preferences.text_cps = 38
 
-    # Show speaker sprite
-    if active_speaker == "marika":
-        show marika neutral at sprite_standing with dissolve
-    elif active_speaker == "elise":
-        show elise neutral at sprite_standing with dissolve
-    elif active_speaker == "vance":
-        show vance neutral at sprite_standing with dissolve
-    elif active_speaker == "hargrove":
-        show hargrove neutral at sprite_standing with dissolve
-    elif active_speaker == "odile":
-        show odile neutral at sprite_standing with dissolve
+    # Hide HUD during intimate dialogue
+    hide screen hud
 
-    # Initial greeting line
-    $ active_npc_line = f"{active_speaker_name} pauses what they are doing and turns to face you."
-
-label convo_turn_loop:
+    # Initial speaker display
     python:
-        convo_turn += 1
+        update_npc_expression(active_speaker, "neutral")
+
+    # Generate greeting + first set of choices via LLM (or fallback)
+    python:
         current_trust = game_state.trust[active_speaker]
-        intents = generate_intents(active_speaker, current_trust, game_state.known_facts, all_facts, convo_turn)
-        dialogue_pack = generate_dialogue_fallback(
+        intents = generate_intents(active_speaker, current_trust, game_state.known_facts, all_facts, 1)
+        present_names = [get_character_display_name(c) for c in current_loc_presence.get(game_state.current_location, []) if c != active_speaker]
+        scene_ctx = build_conversation_context(active_speaker, game_state, run_state, all_facts, present_names)
+        greeting_pack = generate_dialogue(
             char=active_speaker,
-            intent="small_talk",
+            intent="greeting",
             trust=current_trust,
             revealed_facts=[],
             deflected=False,
-            choices_spec=intents
+            choices_spec=intents,
+            context={"scene": scene_ctx, "history": []}
         )
-        active_choices = dialogue_pack["choices"]
+        active_npc_line = greeting_pack.get("dialogue") or greeting_pack.get("npc_line", "")
+        active_choices = greeting_pack.get("choices", [])
+        active_mood = greeting_pack.get("mood", "neutral")
+        active_expression = greeting_pack.get("expression", "neutral")
+        update_npc_expression(active_speaker, active_expression)
 
+label convo_turn_loop:
+    $ convo_turn += 1
+
+    # Call conversation UI: character dialogue on top, choice boxes at bottom
     call screen conversation_ui(active_speaker_name, active_speaker_color, active_npc_line, active_choices)
-    $ chosen_intent = _return
+    $ chosen_intent, chosen_choice_text = _return
 
+    # Play selection sound
+    play sound "audio/select.wav"
+
+    # Adrian delivers his chosen reply aloud with his own voice!
+    $ current_voice_speaker = "adrian"
+    adrian "[chosen_choice_text]"
+
+    # Track conversation history and calculate outcome
     python:
+        convo_history.append({"speaker": active_speaker_name, "text": active_npc_line})
+        convo_history.append({"speaker": "Adrian", "text": chosen_choice_text})
         result = apply_intent(chosen_intent, active_speaker, game_state, run_state, all_facts)
-        next_pack = generate_dialogue_fallback(
-            char=active_speaker,
-            intent=chosen_intent,
-            trust=result["new_trust"],
-            revealed_facts=result["revealed_facts"],
-            deflected=result["deflected"],
-            choices_spec=intents
-        )
-        active_npc_line = next_pack["npc_line"]
-        active_mood = next_pack["mood"]
+        active_mood = result.get("mood", "neutral")
 
-    # Show updated mood sprite for Marika
-    if active_speaker == "marika":
-        if active_mood == "angry":
-            show marika angry at sprite_standing
-        elif active_mood == "shy":
-            show marika shy at sprite_standing
-        elif active_mood == "calm":
-            show marika calm at sprite_standing
-        elif active_mood == "sly":
-            show marika sly at sprite_standing
-        elif active_mood == "sad":
-            show marika sad at sprite_standing
-        elif active_mood == "tearful":
-            show marika tearful at sprite_standing
-        elif active_mood == "apologetic":
-            show marika apologetic at sprite_standing
-        else:
-            show marika neutral at sprite_standing
-
+    # Handle lockout
     if result["lockout"]:
-        "[active_speaker_name] turns away sharply, refusing to speak with you any further this slot."
+        $ current_voice_speaker = active_speaker
+        if active_speaker == "elise":
+            npc_char "No. I have been patient and I have been civil and I am now finished with both. Go."
+        elif active_speaker == "marika":
+            npc_char "You're doing it the way they do it. The questions, the order of them. I'd rather you hit me, Adrian."
+        elif active_speaker == "vance":
+            npc_char "Your pulse is over a hundred and you are shouting at your nurse. We're done. Go and sit down."
+        elif active_speaker == "hargrove":
+            npc_char "I have given this family forty-one years, sir. I will not stand in this hall and be inventoried."
+        else:
+            npc_char "Please — please, sir, don't. I'm wanted in the kitchen. I'm wanted in the kitchen, sir."
         hide marika
         hide elise
         hide vance
         hide hargrove
         hide odile
         with dissolve
+        show screen hud
         jump location_action_loop
 
+    # Handle end of conversation
     if result["end_conversation"] or convo_turn >= CONVO_MAX_TURNS:
         hide marika
         hide elise
@@ -412,7 +772,29 @@ label convo_turn_loop:
         hide hargrove
         hide odile
         with dissolve
+        show screen hud
         jump location_action_loop
+
+    # Generate NPC response + next choices
+    python:
+        new_trust = result["new_trust"]
+        next_intents = generate_intents(active_speaker, new_trust, game_state.known_facts, all_facts, convo_turn + 1)
+        present_names = [get_character_display_name(c) for c in current_loc_presence.get(game_state.current_location, []) if c != active_speaker]
+        scene_ctx = build_conversation_context(active_speaker, game_state, run_state, all_facts, present_names)
+        next_pack = generate_dialogue(
+            char=active_speaker,
+            intent=chosen_intent,
+            trust=new_trust,
+            revealed_facts=result["revealed_facts"],
+            deflected=result["deflected"],
+            choices_spec=next_intents,
+            context={"scene": scene_ctx, "history": convo_history}
+        )
+        active_npc_line = next_pack.get("dialogue") or next_pack.get("npc_line", "")
+        active_mood = next_pack.get("mood", "neutral")
+        active_expression = next_pack.get("expression", "neutral")
+        active_choices = next_pack.get("choices", [])
+        update_npc_expression(active_speaker, active_expression)
 
     jump convo_turn_loop
 
@@ -420,12 +802,19 @@ label convo_turn_loop:
 ## Advance Slot & Day Transitions
 ################################################################################
 label advance_slot:
+    # After-hours is a bonus round bolted onto the end of the night, so it
+    # exits to the killer rather than rolling into the next slot.
+    if after_hours_active:
+        $ after_hours_active = False
+        hide screen hud
+        "The lamps burn down. One by one they stop talking, and the silence that replaces them is not a restful one."
+        jump night_death
+
     python:
         game_state.slot_actions_remaining = ACTIONS_PER_SLOT
         game_state.conversations_this_slot.clear()
         game_state.locked_out.clear()
 
-        # Slot progression: morning -> afternoon -> evening
         if game_state.current_slot == "morning":
             game_state.current_slot = "afternoon"
             next_label = "day_slot_start"
@@ -433,81 +822,275 @@ label advance_slot:
             game_state.current_slot = "evening"
             next_label = "day_slot_start"
         else:
-            # Evening ends -> Night!
             if game_state.current_day == 1:
-                next_label = "day1_night_transition"
+                next_label = "day1_evening_bond"
             else:
                 next_label = "day2_night_transition"
 
     jump expression next_label
 
 ################################################################################
-## Day 1 Safe Night Transition
+## Day 1, last light: whoever you got closest to comes looking for you
+################################################################################
+##
+## This is where the trust integer stops being an integer. Whoever Adrian
+## reached furthest sits down with him once, before anyone has died, so that
+## Day 2 has something to cost him.
+
+label day1_evening_bond:
+    python:
+        # Highest trust wins. Ties break toward the people who started closed
+        # off, so warming Marika or Elise outranks a butler who liked you anyway.
+        _bond_order = ["marika", "elise", "odile", "vance", "hargrove"]
+        confidant = max(_bond_order, key=lambda c: (game_state.trust.get(c, 0), -_bond_order.index(c)))
+        _bond_trust = game_state.trust.get(confidant, 0)
+
+    show screen cinema_letterbox
+    scene bg parlor_evening with fade
+    play sound "audio/clock_tick.wav"
+    pause 0.4
+
+    "The lamps are lit early. Outside, the light goes the colour of weak tea and then goes out entirely."
+
+    if _bond_trust <= 1:
+        # Nobody opened up. The house simply closes around him.
+        thought "A whole day in my own home, and not one person in it has told me a true thing."
+        "You sit in the parlor until the fire is embers, and nobody comes."
+        thought "I keep waiting for someone to knock. Somewhere between the ninth and tenth hour I understand that nobody is going to."
+        $ confidant = None
+        jump day1_night_transition
+
+    # ─── Marika ──────────────────────────────────────────────────────────────
+    if confidant == "marika":
+        show marika sad at sprite_standing with dissolve
+        "There is a sound at the terrace door. Marika is on the wrong side of it, coat soaked through at the shoulders, not knocking — just standing where she can be seen."
+        marika_char "I'm not coming in. I know the rule. I just wanted to see the lamps go on from closer than the gate."
+
+        adrian "You've been out there all day."
+
+        show marika calm at sprite_standing
+        marika_char "I've been out there for eleven days. Today you were in the house, so today was better."
+        marika_char "You keep apologising for not knowing me. Don't. You're the only one here who's honest about it."
+        show marika shy at sprite_standing
+        marika_char "Everyone else in this place knew exactly who you were and let it happen anyway."
+
+        thought "She said that very quietly, and then looked like she wished she hadn't."
+
+        adrian "Let what happen?"
+
+        show marika sad at sprite_standing
+        marika_char "Goodnight, Adrian. Lock the terrace after me. Please actually lock it."
+        hide marika with dissolve
+        thought "She has never once asked me to let her in. She asks me to lock doors."
+
+    # ─── Elise ───────────────────────────────────────────────────────────────
+    elif confidant == "elise":
+        show elise somber at sprite_standing with dissolve
+        "Elise comes in without announcing herself, which in this house is practically an embrace, and sits down two chairs away."
+        elise_char "Don't speak. I've been composing this since four o'clock and if you speak I shall lose it."
+
+        "She looks at the fire rather than at you."
+        elise_char "When they telephoned from the hospital, they said you were alive and I was — "
+        show elise distressed at sprite_standing
+        elise_char "I was relieved before I was grieved. For our parents. I was relieved first."
+        elise_char "I have not told anyone that. I am telling it to someone who will not remember it, which I find I can bear."
+
+        adrian "I'll remember this."
+
+        show elise somber at sprite_standing
+        elise_char "...Then that was a poor calculation on my part."
+        "She stands, smooths her skirt twice, and recovers her face on the way to the door."
+        elise_char "The house is cold at the east end. Don't wander. I have lost quite enough of this family for one season."
+        hide elise with dissolve
+        thought "Lise. I almost said it."
+
+    # ─── Odile ───────────────────────────────────────────────────────────────
+    elif confidant == "odile":
+        show odile nervous at sprite_standing with dissolve
+        "Odile comes to bank the fire and takes considerably longer about it than banking a fire requires."
+        odile_char "Sir... may I say a thing that isn't my place?"
+
+        adrian "I'd prefer it, honestly."
+
+        show odile talking at sprite_standing
+        odile_char "You thank me. You've done it four times today. Nobody's done that in this house since the mistress."
+        show odile nervous at sprite_standing
+        odile_char "And — the pipes, sir. What I said about the pipes."
+        odile_char "It's footsteps. On the back stair, the one the family doesn't use. Most nights now, after the clock goes twelve."
+
+        adrian "Whose footsteps?"
+
+        odile_char "I don't look, sir."
+        "She picks up the coal scuttle and holds it in front of her like a shield."
+        odile_char "I've twelve years here and nowhere else to go. I don't look."
+        hide odile with dissolve
+        thought "She told me anyway. She was frightened the entire time and she told me anyway."
+
+    # ─── Vance ───────────────────────────────────────────────────────────────
+    elif confidant == "vance":
+        show vance neutral at sprite_standing with dissolve
+        "Vance arrives with the evening capsules and, unusually, does not leave once you have taken them."
+        vance_char "Sit. Pulse."
+        "Two fingers at your wrist. She watches the second hand and says nothing for a quarter of a minute."
+
+        vance_char "Sixty-four. Irritatingly good. You'll outlive this house."
+        show vance talking at sprite_standing
+        vance_char "I'll tell you something off the record, and if you repeat it I'll deny it with my whole chest."
+        vance_char "I've nursed in six houses like this one. They all have a bad room. Usually it's the money."
+        show vance clinical at sprite_standing
+        vance_char "Here it isn't the money. Here everyone is frightened of a different thing, and none of them will say what."
+
+        adrian "Including you?"
+
+        vance_char "Including me. Take your capsules."
+        hide vance with dissolve
+        thought "She waited until I asked before she admitted it. But she did admit it."
+
+    # ─── Hargrove ────────────────────────────────────────────────────────────
+    else:
+        show hargrove talking at sprite_standing with dissolve
+        "Hargrove brings the broth, as promised, and a second bowl, which he sets down opposite without comment and does not touch."
+        hargrove_char "Your father took his supper in this room every evening of his life. He would not have it anywhere else, even at the end, when the two of you were — "
+        show hargrove grave at sprite_standing
+        hargrove_char "Even at the end."
+
+        adrian "We argued. Didn't we."
+
+        hargrove_char "You did, sir. Loudly and often, and about money, and I heard rather more of it than a butler ought."
+        hargrove_char "I will tell you the part that matters. The last time, in March, you offered to sell what was yours to settle what was his."
+        show hargrove talking at sprite_standing
+        hargrove_char "He said no, and he was proud of you, and he did not say so. I have thought about that every day since the gorge."
+
+        thought "He is telling me I was good. He is telling me because there is no one left alive who can tell me."
+
+        hargrove_char "Eat, young master. It is a long night and the house is cold."
+        hide hargrove with dissolve
+
+    pause 0.6
+    hide screen cinema_letterbox
+    jump day1_night_transition
+
+################################################################################
+## Day 1 Safe Night Transition (Cinematic)
 ################################################################################
 label day1_night_transition:
-    scene black with fade
-    "Night falls over the estate. Rain lashes against the leaded panes."
-    "Tomorrow is Day 2. Something in this house is shifting, coming closer."
+    hide screen hud
+    show screen cinema_letterbox
+    scene bg parlor_night with fade
+    play sound "audio/thunder.wav"
+    pause 0.5
+
+    "A thunderstorm descends upon the Blackwood ridge."
+    "Wind screams through the leaded sash windows, rattling the stained glass."
+    
+    play sound "audio/clock_tick.wav"
+    "Midnight. The shadows in the stairwell stretch long and distorted."
+    "Tomorrow is Day 2. The air in this house feels charged, like iron before lightning strikes."
+    "Someone here is watching you. Waiting for their moment."
+
+    pause 1.0
+    hide screen cinema_letterbox
     jump day2_morning_transition
 
 ################################################################################
-## Day 2 Morning: Revolver Beat
+## Day 2 Morning: Revolver Beat (Cinematic)
 ################################################################################
 label day2_morning_transition:
     python:
         game_state.current_day = 2
         game_state.current_slot = "morning"
         game_state.slot_actions_remaining = ACTIONS_PER_SLOT
-        game_state.bullet_available = True
+        game_state.bullet_available = revolver_found
 
+    show screen cinema_letterbox
     scene bg upstairs with fade
-    "Day 2. Morning light cuts cold across the wooden floorboards."
-    "As you open the nightstand drawer beside your bed, metal catches the light."
-    "Your late father's revolver. Heavy, cold, and loaded with exactly ONE bullet."
-    "Whoever caused the crash is here. Tonight, they will finish what they started."
-    "Unless you stop them first."
+    "Day 2. The morning comes in cold and grey through frosted panes."
+    "Getting up, your hand catches the brass pull of the nightstand's bottom drawer, and the drawer does not move."
+
+    play sound "audio/clock_tick.wav"
+    pause 0.4
+
+    "Locked. Not stuck — locked, with the small flat kind of lock that takes the small flat kind of key."
+    "You put your eye to the gap. Something inside is wrapped in oilcloth, and the shape of it is not a shape you can mistake for anything else."
+
+    thought "Father's service revolver. It is eight inches away and it may as well be in the gorge with him."
+    thought "He kept the key somewhere. He kept everything somewhere, and he wrote down where, because he never trusted his own memory either."
+
+    if game_state.loop_no == 1:
+        thought "Whoever cut those brake lines is going to come for me tonight. I need to be holding that before they do."
+    else:
+        thought "Same drawer. Same lock. Somewhere in this house is the key, and I have until midnight to be quicker about it than last time."
+
+    pause 1.0
+    hide screen cinema_letterbox
+    show screen hud
     jump day_slot_start
 
 ################################################################################
-## Day 2 Night: Last Chance & Murder
+## Day 2 Night: Last Chance & Murder (Cinematic)
 ################################################################################
 label day2_night_transition:
-    # If bullet is still available, present the last chance prompt
-    if game_state.bullet_available:
-        scene bg parlor with fade
-        "Midnight approaches. The shadows stretch across the walls like grasping fingers."
-        "You feel the weight of the revolver in your coat. One bullet remains."
+    hide screen hud
+    show screen cinema_letterbox
+    scene bg parlor_night with fade
+    
+    play sound "audio/clock_tick.wav"
+    pause 0.5
+    "Midnight arrives."
+    "The grandfather clock tolls twelve deliberate, hollow beats through the silence."
+    if game_state.bullet_available and knife_found:
+        "The revolver is a cold weight under your coat. The kitchen knife is a colder one, flat against your forearm, and you are not sure when you started carrying both."
+    elif game_state.bullet_available:
+        "The revolver sits under your coat with its one cartridge, and every few minutes you check that it is still there."
+    elif knife_found:
+        "You have a boning knife from the kitchen block and nothing else, and the handle has gone slick in your hand."
+    else:
+        "You have nothing in your hands and nothing in your pockets, and the hallway is very long."
 
+    if game_state.bullet_available or knife_found:
         menu:
-            "Draw the revolver now and shoot someone":
-                call screen shoot_target_picker(CHARACTERS)
+            "Draw the revolver and go looking for them" if game_state.bullet_available:
+                call screen shoot_target_picker(CHARACTERS, "revolver")
                 $ final_target = _return
                 if final_target != "cancel":
                     $ tname = get_character_display_name(final_target)
-                    call screen shoot_confirm(tname)
+                    call screen shoot_confirm(tname, "revolver")
                     if _return == "shoot":
                         $ game_state.target_shot = final_target
                         jump execute_shot
-            "Hold fire and wait through the darkness":
+
+            "Take the knife and go looking for them" if knife_found:
+                call screen shoot_target_picker(CHARACTERS, "knife")
+                $ final_target = _return
+                if final_target != "cancel":
+                    $ tname = get_character_display_name(final_target)
+                    call screen shoot_confirm(tname, "knife")
+                    if _return == "shoot":
+                        $ game_state.target_shot = final_target
+                        jump execute_stab
+
+            "Stay where you are and let them come to you":
                 pass
 
     jump night_death
 
 ################################################################################
-## Shoot Execution
+## Shoot Execution (Cinematic)
 ################################################################################
 label execute_shot:
     $ game_state.bullet_available = False
     $ shot_target = game_state.target_shot
     $ tname = get_character_display_name(shot_target)
 
-    # Gunshot sound and flash
-    scene white with Dissolve(0.1)
+    # Gunshot sound, flash, kickback
+    play sound "audio/gunshot.wav"
+    scene white with Dissolve(0.08)
     with death_shake
-    scene black with Dissolve(0.3)
+    scene black with Dissolve(0.4)
 
-    "A deafening report tears through the manor hall."
-    "[tname] stumbles backward, clutching their chest as blood blooms across fabric."
+    "A thunderous report shatters the silence of the manor!"
+    "The muzzle flash scorches your retinas. The bitter stink of cordite fills your lungs."
+    "[tname] gasps, stumbling backward as blood blossoms across their clothes."
 
     if shot_target == run_state.killer:
         $ game_state.killer_shot = True
@@ -516,33 +1099,231 @@ label execute_shot:
         jump ending_victory
     else:
         $ game_state.wrong_kill = True
-        "A horrifying silence falls. [tname] collapses to the floor, motionless."
-        "You shot the wrong person. The revolver cylinder clicks empty."
-        "The real killer is still here."
+        "A horrifying silence collapses over the hall."
+        "[tname] crumples to the floorboards, lifeless."
+        play sound "audio/revolver_cock.wav"
+        "You pull the trigger again in blind panic—*CLICK*."
+        "Empty. You shot the wrong person."
+        "From the shadows behind you, calm footsteps begin to approach..."
         jump night_death
 
 ################################################################################
-## Night Death & Return by Death Loop Reset
+## Knife Execution
+################################################################################
+##
+## The knife is the cheap weapon: easy to find, close range, and it leaves a
+## body the household has to do something about. Getting it wrong does not
+## simply end the night -- it makes you complicit with four other people, and
+## complicity is the most talkative state a person can be in.
+
+label execute_stab:
+    $ knife_found = False
+    $ knife_taken_back = True
+    $ stab_target = game_state.target_shot
+    $ tname = get_character_display_name(stab_target)
+
+    play sound "audio/strain_burn.wav"
+    scene black with Dissolve(0.25)
+    with death_shake
+
+    "It is nothing like you imagined, because you imagined a decision and this is a scuffle."
+    "There is a half-second where [tname] is looking at you with ordinary irritation, and then there is a sound like a boot pulled out of mud, and then there is no half-second left anywhere."
+    "They hold onto your sleeve. Not fighting — holding. They go down slowly and take your balance with them, and the two of you end up on the boards together in the dark."
+
+    pause 1.0
+
+    if stab_target == run_state.killer:
+        $ game_state.killer_shot = True
+        $ game_state.game_over = True
+        $ game_state.ending = "victory"
+        scene bg parlor_night with Dissolve(0.8)
+        "And in the last of it, quite clearly, with your ear six inches from their mouth, they tell you."
+        jump ending_victory
+
+    $ game_state.wrong_kill = True
+    jump knife_coverup
+
+
+################################################################################
+## The Cover-Up
+################################################################################
+
+label knife_coverup:
+    python:
+        survivors = [c for c in CHARACTERS if c != game_state.target_shot]
+
+        def _pick(order):
+            for c in order:
+                if c in survivors:
+                    return c
+            return survivors[0]
+
+        # Roles, not names -- any of the five can be the one on the floor.
+        _lead = _pick(["elise", "vance", "hargrove", "marika", "odile"])
+        _medic = _pick(["vance", "hargrove", "elise", "odile", "marika"])
+        _steady = _pick([c for c in ["hargrove", "vance", "elise", "marika", "odile"] if c != _lead])
+        _taker = _pick([c for c in ["odile", "hargrove", "marika", "vance", "elise"] if c not in (_lead,)])
+
+        _char_objs = {
+            "marika": marika_char,
+            "elise": elise_char,
+            "vance": vance_char,
+            "hargrove": hargrove_char,
+            "odile": odile_char,
+        }
+        lead_char = _char_objs[_lead]
+        medic_char = _char_objs[_medic]
+        steady_char = _char_objs[_steady]
+        taker_char = _char_objs[_taker]
+
+        lead_name = get_character_display_name(_lead)
+        steady_name = get_character_display_name(_steady)
+        taker_name = get_character_display_name(_taker)
+
+        def _show_at(cid, pos):
+            renpy.show(cid + " neutral", at_list=[pos])
+
+    scene bg parlor_night with fade
+    play sound "audio/clock_tick.wav"
+
+    "Lamps come on along the corridor, one after another, in the order of who sleeps lightest."
+    "They find you sitting on the floor beside it with your hands open on your knees, because you cannot think what else to do with your hands."
+
+    $ _show_at(_lead, sprite_left)
+    $ _show_at(_steady, sprite_right)
+    with dissolve
+
+    lead_char "...Adrian."
+    lead_char "Adrian, what have you — what is — "
+    "Nobody screams. That is the part you will remember. A house with a body in it, and not one person in it screams."
+
+    adrian "I thought it was them. I was certain it was them."
+
+    lead_char "Certain of what? Say the whole sentence. Say the whole sentence out loud."
+
+    "You open your mouth to say it — that tonight you are going to be killed, that you have already been killed, that you were only trying to get there first —"
+    play sound "audio/strain_burn.wav"
+    with death_shake
+    "— and the hand closes on the inside of your throat again, patient as ever, and nothing comes out but air."
+
+    lead_char "He can't breathe. He can't breathe, help me with him — "
+    steady_char "I have him. Slowly, sir. Slowly."
+
+    "You come back to yourself with somebody's hand flat between your shoulderblades and the taste of pennies in your mouth."
+
+    $ renpy.hide(_lead)
+    $ renpy.hide(_steady)
+    with dissolve
+
+    $ _show_at(_medic, sprite_standing)
+    with dissolve
+    medic_char "Everyone stop talking."
+    medic_char "He has a head injury, a pulse I can hear from here, and no reliable idea what day it is. That is my statement and I will put my name to it."
+    medic_char "If the constabulary come up that road tonight, they take him. And he does not come back from where they take him."
+    $ renpy.hide(_medic)
+    with dissolve
+
+    $ _show_at(_lead, sprite_left)
+    $ _show_at(_steady, sprite_right)
+    with dissolve
+    lead_char "The ground by the east wall is soft. The gardeners turned it over in October and nobody has been near it since."
+    steady_char "...You cannot be saying what you are saying."
+    lead_char "Then say a better idea. I am listening, and I would genuinely love one."
+    "[steady_name] does not say a better idea."
+
+    $ renpy.hide(_lead)
+    $ renpy.hide(_steady)
+    with dissolve
+
+    scene bg gate_night with fade
+    play sound "audio/thunder.wav"
+    "It takes until nearly three. The rain helps, in the way that rain helps."
+    "Somebody holds the lamp. Somebody else does most of the digging. You are not permitted to do any of it, which is somehow the worst thing that has happened all night."
+
+    $ _show_at(_taker, sprite_standing)
+    with dissolve
+    taker_char "Your coat, sir. And the — and the thing."
+    "A hand held out, palm up, that will not look at what it is asking for."
+    taker_char "You're not to have anything sharp. That's what's been decided. I'm sorry."
+    adrian "You're right to take it."
+    taker_char "I wasn't right about anything. I only did as I was told, same as always."
+    $ renpy.hide(_taker)
+    with dissolve
+
+    "The knife goes into the hole with the rest of it. The soil goes back. Someone tamps it flat with the back of a spade and then stands there a long moment afterwards, hat in hand, saying nothing at all."
+
+    thought "Four people came out here tonight and buried a body for me, and three of them have never hurt anyone in their lives."
+    thought "And one of them helped me dig, and smiled about it where the lamp could not reach."
+
+    pause 0.8
+    jump after_hours
+
+
+################################################################################
+## After Hours
+################################################################################
+##
+## The reward for the worst night of Adrian's life: four people who are now
+## inside the secret with him, awake, shaken, and far more honest than they
+## were at dinner. This is the knife's actual payoff -- information, bought
+## with a loop.
+
+label after_hours:
+    python:
+        after_hours_active = True
+        survivors = [c for c in CHARACTERS if c != game_state.target_shot]
+        game_state.current_location = "parlor"
+        game_state.slot_actions_remaining = 2
+        game_state.conversations_this_slot.clear()
+        game_state.locked_out.clear()
+        current_loc_presence = {loc: [] for loc in LOCATIONS}
+        current_loc_presence["parlor"] = list(survivors)
+        # Shared guilt opens people up in a way nothing else in this house does.
+        for c in survivors:
+            game_state.trust[c] = min(TRUST_MAX, game_state.trust.get(c, 0) + 1)
+            pres_fact = "presence:seen:" + c + ":parlor:evening:" + str(game_state.current_day)
+            game_state.known_facts.add(pres_fact)
+
+    scene bg parlor_night with fade
+    "Afterwards, nobody goes to bed."
+    "They sit in the parlor with the lamps turned down and their boots still wet, and the house is more awake at four in the morning than it has been all week."
+
+    thought "They are frightened, and they are in it with me now, and frightened people who are already in it will say things they would never say at breakfast."
+    thought "I have until whoever it is decides the night is not finished. Use it."
+
+    show screen hud
+    jump location_action_loop
+
+
+################################################################################
+## Night Death & Return by Death Loop Reset (Cinematic Horror)
 ################################################################################
 label night_death:
     hide screen hud
+    show screen cinema_letterbox
     scene black with fade
-    pause 0.5
+    pause 0.6
 
-    "Footsteps approach in the darkness. Quiet, measured, completely without hurry."
-    "A cold hand closes around your throat."
+    play sound "audio/clock_tick.wav"
+    "Darkness. Absolute, suffocating darkness."
+    "Footsteps approach. Slow, deliberate, entirely without hurry."
+    "The floorboards barely creak beneath their weight."
 
-    # Sensory fragment display
+    # Sensory fragment delivery
     python:
         frag_idx = min(len(run_state.fragment_order) - 1, game_state.loop_no - 1)
         frag_cat = run_state.fragment_order[frag_idx]
         frag_text = DEATH_FRAGMENTS[run_state.killer][frag_cat]
         game_state.fragments_seen.append(frag_text)
 
-    # Screen shake and chromatic flash
+    # Sensory horror reveal
+    play sound "audio/strain_burn.wav"
+    show screen heartbeat_flash
     with death_shake
+    "Cold hands close around your throat."
     death_narrator "\"[frag_text]\""
-    pause 2.0
+    hide screen heartbeat_flash
+    pause 1.5
 
     # Strain calculation
     python:
@@ -551,38 +1332,191 @@ label night_death:
 
     if game_state.strain > MAX_STRAIN:
         jump ending_swallowed
-    else:
-        # Return by Death Flash
-        scene white with Dissolve(0.2)
-        with death_shake
-        scene black with Dissolve(0.4)
 
-        python:
-            game_state = reset_loop(game_state, run_state)
+    # ─── Return by Death Reality Tear ────────────────────────────────────────
+    play sound "audio/loop_snap.wav"
+    scene white with Dissolve(0.15)
+    with death_shake
+    scene black with Dissolve(0.8)
 
-        # Wake up at Day 2 Morning!
-        show screen hud
-        "You gasp for air, bolting upright in bed. Sweat soaks your hospital gown."
-        "Your hands shake. The hairline cracks across your skin burn like heated wires."
-        "Day 2. You remember everything. The loop has returned you to the morning."
-        jump day2_morning_transition
+    python:
+        game_state = reset_loop(game_state, run_state)
+        # The house resets with him: the drawer is locked again, the knife is
+        # back in the rack. Only what he learned comes back with him.
+        revolver_found = False
+        revolver_key_found = False
+        drawer_examined = False
+        knife_found = False
+        knife_taken_back = False
+        after_hours_active = False
+
+    # ─── Awakening ───────────────────────────────────────────────────────────
+    play sound "audio/heartbeat.wav"
+    pause 0.5
+
+    # Fullscreen loop title card
+    call screen loop_splash_screen(game_state.loop_no, game_state.strain)
+
+    scene bg upstairs with fade
+    play sound "audio/heartbeat.wav"
+
+    "You come up out of it the way a drowning man comes up — all at once, too loud, hands already fighting something that is no longer there."
+    "The sheets are soaked. The room is warm. Nothing in it has been disturbed."
+
+    if game_state.strain == 1:
+        "On the inside of your left wrist there is a mark like a crack in glaze, thin and black, warm to the touch."
+        thought "That was not there yesterday. There is no yesterday. It was not there an hour ago, and an hour ago I was dead."
+    elif game_state.strain == 2:
+        "The cracks have spread past your elbow, fine and dark and branching, and they ache the way a struck bone aches."
+        thought "It is further up than last time. It is going to keep being further up than last time."
+    elif game_state.strain >= 3:
+        "You cannot look at your own arm for very long. Something underneath the skin is not keeping its shape."
+
+    "Day 2. Seven in the morning. The light comes in cold and square across the floorboards, exactly as it did before."
+    "Downstairs the clock begins its seven strokes, and you know, with absolute certainty, that the fifth one will be slightly flat."
+    "It is."
+
+    # The psychological cost scales with how many times he has been through it.
+    if game_state.loop_no == 2:
+        thought "I died. Someone put their hands around my throat in the dark and I died, and now I am warm and dry and it is morning."
+        thought "I can feel where the fingers were. There is nothing on my neck. I checked twice."
+        "You sit on the edge of the bed for a long time, waiting to stop believing it. You do not stop believing it."
+    elif game_state.loop_no == 3:
+        thought "Twice now. The second one was worse, because I knew what the footsteps meant before they arrived."
+        thought "I am starting to think of the people downstairs in the past tense. They are going to come down to breakfast and be perfectly alive, and I am going to have to be surprised by it."
+        "You practise your face in the dark glass of the window until it looks like a man who has slept."
+    elif game_state.loop_no >= 4:
+        thought "I have stopped counting out loud. Counting out loud made it worse."
+        thought "There is a version of this morning where I simply stay in this room until it ends. I have thought about it more than once. It does not end. I checked that too."
+        "You get up, because the alternative is to find out what happens to a man who doesn't."
+
+    "The bedside drawer is open an inch, the way it was. Inside, on the velvet, the revolver is exactly where you left it, with exactly one round."
+
+    hide screen cinema_letterbox
+
+    # The thing that makes the loop lonely: he cannot hand it to anyone.
+    if confidant is not None and not confided_attempt and game_state.loop_no >= 2:
+        jump loop_confession_attempt
+
+    jump day2_morning_transition
+
 
 ################################################################################
-## Endings
+## The Unspeakable Thing
+################################################################################
+##
+## Fires once, the first time Adrian wakes from a death with someone he
+## actually trusts. He tries to hand it to them. He cannot. That failure is
+## the whole emotional engine of a Return by Death story, and without it the
+## loop is just a retry button.
+
+label loop_confession_attempt:
+    $ confided_attempt = True
+    $ _cname = get_character_display_name(confidant)
+
+    show screen cinema_letterbox
+    scene bg parlor with fade
+    pause 0.4
+
+    "You find [_cname] before you have decided what you are going to say, which is how you know you are going to say it."
+
+    if confidant == "marika":
+        show marika neutral at sprite_standing with dissolve
+    elif confidant == "elise":
+        show elise neutral at sprite_standing with dissolve
+    elif confidant == "vance":
+        show vance neutral at sprite_standing with dissolve
+    elif confidant == "hargrove":
+        show hargrove neutral at sprite_standing with dissolve
+    else:
+        show odile neutral at sprite_standing with dissolve
+
+    adrian "I need you to listen to me and not decide anything until I've finished."
+    adrian "Tonight, after midnight, I am going to be killed in this house. I know because it has already happened."
+
+    "You get that far."
+    "You get exactly that far, and then your throat closes."
+
+    play sound "audio/strain_burn.wav"
+    with death_shake
+    "It is not fear. Fear you could push through. This is a hand, cold and unhurried, closing on the inside of your windpipe — the same hand, the same patience, the one from the dark."
+    death_narrator "\"Not that.\""
+    "The cracks on your arm go white-hot. The room tilts. Somewhere very far away, someone is saying your name."
+
+    pause 0.8
+    scene black with Dissolve(0.5)
+    pause 0.5
+    scene bg parlor with Dissolve(0.5)
+
+    "You are on one knee on the carpet with no memory of getting there."
+
+    if confidant == "marika":
+        show marika tearful at sprite_standing
+        marika_char "Adrian — Adrian, breathe, you're grey, you're actually grey —"
+        marika_char "What did you just try to tell me? You said you were going to be — "
+        show marika sad at sprite_standing
+        marika_char "...You've stopped. Why have you stopped?"
+        adrian "...Nothing. It was nothing. I didn't sleep."
+        show marika tearful at sprite_standing
+        marika_char "Don't. Don't do the thing where you look after me instead of answering."
+    elif confidant == "elise":
+        show elise distressed at sprite_standing
+        elise_char "Adrian. Adrian, look at me. Get up off the floor — Hargrove! "
+        adrian "Don't call him. I'm all right. I'm all right, it's passing."
+        show elise angry at sprite_standing
+        elise_char "You said you were going to be killed. In my house. Tonight."
+        show elise distressed at sprite_standing
+        elise_char "That is the head injury talking and I will have Vance double your dose, and you will let me, because I cannot do this twice in one year."
+    elif confidant == "vance":
+        show vance clinical at sprite_standing
+        vance_char "Down. All the way down, on your side. Don't argue with me."
+        "Her fingers are at your throat, then your pulse, and her face does something it has not done before."
+        vance_char "Your airway closed. There is nothing in your airway."
+        show vance talking at sprite_standing
+        vance_char "Adrian, people with temporal injuries get convictions. Certainties. They feel exactly like memories and they are not."
+        vance_char "Whatever you were about to tell me — I need you to hold it very loosely."
+    elif confidant == "hargrove":
+        show hargrove grave at sprite_standing
+        hargrove_char "Sir — young master — here, my arm, take my arm."
+        "The old man is on the floor beside you before you can stop him, and his hands are shaking worse than yours."
+        hargrove_char "You said you were to be killed tonight."
+        show hargrove talking at sprite_standing
+        hargrove_char "I have served this family through two wars and a great deal of shouting, and I have never once heard a Blackwood say a thing like that and be wrong."
+        hargrove_char "But look at the state of you. Whatever it is, sir, it will not have you tonight. I shall be awake."
+    else:
+        show odile nervous at sprite_standing
+        odile_char "Sir! Oh — oh sir, your hands, let me — "
+        "She has her apron under your head before she has thought about whether she is allowed to."
+        odile_char "You said someone's going to — "
+        show odile talking at sprite_standing
+        odile_char "I'll not repeat it. I'll not say a word of it to anyone, I swear it on my mother."
+        odile_char "But I'll be listening tonight, sir. I'll be on the back stair and I will be listening."
+
+    thought "They cannot be told. Something in this house will not permit it, and it will take my throat out through the front to make the point."
+    thought "Whatever is left to do tonight, I do it on my own."
+
+    pause 0.6
+    hide screen cinema_letterbox
+    jump day2_morning_transition
+
+################################################################################
+## Endings (Cinematic)
 ################################################################################
 label ending_victory:
     hide screen hud
+    show screen cinema_letterbox
     $ k = run_state.killer
     $ ag = run_state.agenda
+    $ kname = get_character_display_name(k)
     python:
         fb_data = get_fallback_data()
-        epilogue_line = fb_data.get("epilogues", {}).get(ag, {}).get(k, "The killer collapses.")
-        victory_coda_line = fb_data.get("victory_coda", "")
+        epilogue_line = fb_data.get("epilogues", {}).get(ag, {}).get(k, "The killer goes down, and the truth comes up out of them like water out of a broken pipe.")
+        victory_coda_line = fb_data.get("victory_coda", "The knot in the night comes untied. Morning arrives, and keeps arriving.")
 
     scene bg parlor with fade
-    "The smoke clears in the stillness of the parlor."
+    "The report is still ringing off the panelling. Gunsmoke drifts up through the lamplight, unhurried, as though it has all night."
 
-    # Show bloodied killer sprite
+    # The killer, bloodied
     if k == "elise":
         show elise bloodied at sprite_standing with dissolve
     elif k == "vance":
@@ -596,25 +1530,111 @@ label ending_victory:
 
     "[epilogue_line]"
 
+    thought "There it is. Said out loud, in this room, by that mouth."
+    thought "I have wanted it for so many nights that I forgot to work out what I would feel when I had it."
+
+    "[kname] goes down slowly, with the terrible dignity of someone who has run out of reasons to keep standing."
+
+    pause 0.8
+    scene black with fade
+    pause 1.0
+
+    # The loop lets go.
+    play sound "audio/loop_snap.wav"
+    "And then — nothing happens."
+    "No lurch. No white. No bed, no seven o'clock, no fifth stroke of the clock coming in slightly flat."
+    "The night simply goes on being the same night."
+
+    scene bg parlor_night with Dissolve(1.2)
+    "You stand in the quiet with the revolver getting cold in your hand and let the minutes do what minutes are supposed to do."
+
+    "The marks on your arm fade while you are watching them. Not quickly. Like frost going off a window."
+
+    # The person who got closest, if anyone did.
+    if confidant is not None:
+        $ cname2 = get_character_display_name(confidant)
+        "Someone is in the doorway. [cname2] has been standing there long enough to have seen most of it."
+        if confidant == k:
+            thought "Of course. Of course it was."
+            thought "I shot the only person in this house who ever told me the truth, and they told me the truth because they had already decided I would not live to repeat it."
+            "You do not look at the doorway again. There is nobody in it."
+        else:
+            if confidant == "marika":
+                show marika tearful at sprite_right with dissolve
+                marika_char "You knew. All day you knew, and you couldn't — that's what you were trying to say to me."
+                adrian "Yes."
+                show marika calm at sprite_right
+                marika_char "Then I'm going to spend a very long time being angry with you, and I'd like to start tomorrow, if that's all right."
+            elif confidant == "elise":
+                show elise distressed at sprite_right with dissolve
+                elise_char "I had Vance double your dose. I told you it was the injury."
+                adrian "You were being kind."
+                show elise somber at sprite_right
+                elise_char "I was being comfortable."
+                elise_char "...Come away from there, Adrian. Please. Come away."
+                thought "She has not called me brother. She has called me Adrian, and she has said please."
+            elif confidant == "vance":
+                show vance neutral at sprite_right with dissolve
+                vance_char "Sit down before you fall down. No — there. The light's better."
+                "She takes your pulse with the gun still in your other hand, which is either enormous professionalism or shock, and you decide not to ask which."
+                vance_char "A hundred and forty. Under the circumstances, I'll allow it."
+            elif confidant == "hargrove":
+                show hargrove grave at sprite_right with dissolve
+                hargrove_char "I said I should be awake, sir. I was awake. I was simply on the wrong stair."
+                adrian "You couldn't have known."
+                show hargrove talking at sprite_right
+                hargrove_char "Forty-one years in this hall, young master, and the one night it mattered I was on the wrong stair."
+                hargrove_char "Give me the revolver. There's a good lad. Give it here and come and sit down."
+            else:
+                show odile nervous at sprite_right with dissolve
+                odile_char "I was listening, sir. Like I said I would. I was on the back stair the whole night."
+                adrian "You heard it."
+                show odile talking at sprite_right
+                odile_char "I heard you say their name, sir. And then I heard the shot, and then I heard you breathing."
+                odile_char "That last part was the good part."
+    else:
+        thought "Nobody comes. The house takes a long time to notice anything."
+        thought "I did this alone, and I will have to be the one who explains it, and there is no one here who would have believed me beforehand."
+
+    pause 0.8
     scene black with fade
     pause 1.0
 
     "[victory_coda_line]"
+    pause 1.5
 
-    pause 2.0
-    centered "{size=32}{color=#66c1e0}VICTORY ACHIEVED\nYou broke the time loop and uncovered the truth.{/color}{/size}"
-    pause 3.0
+    centered "{size=40}{color=#f2c98a}THE LOOP ENDS{/color}{/size}\n\n{size=23}{color=#c9b9a2}You named the killer, you lived to see the morning,\nand the clock in the stairwell struck seven only once.{/color}{/size}"
+    pause 4.5
+    hide screen cinema_letterbox
     return
+
 
 label ending_swallowed:
     hide screen hud
-    scene white with Dissolve(1.5)
+    show screen cinema_letterbox
+    play sound "audio/loop_snap.wav"
+    scene white with Dissolve(2.0)
     python:
         fb_data = get_fallback_data()
-        swallowed_text = fb_data.get("swallowed_ending", "The loop closes permanently.")
+        swallowed_text = fb_data.get("swallowed_ending", "The loop closes over the place where you were and does not leave a mark.")
+
+    "The cracks finish what they have been doing since the first night."
+    "They do not hurt. That is the part nobody warns you about — at the end it does not hurt at all."
+
+    "The hallway goes first, then the stairs, then the particular flatness of the fifth stroke of seven o'clock."
+    "Then Marika at the gate in the rain. Then an old man insisting on a second bowl of broth. Then a girl on the back stair, listening."
+    "Then your mother's hand flat against a dashboard."
+    "Then the shape of your own name."
 
     "[swallowed_text]"
+    pause 1.5
+
+    scene black with Dissolve(2.0)
+    "Somewhere below, a clock strikes seven."
+    "In an upstairs room, a bed is made, and has been for some time, and nobody in the house can quite remember who it was for."
+
     pause 2.0
-    centered "{size=32}{color=#ff3333}LOOP COLLAPSED\nYour mind was swallowed by the manor.{/color}{/size}"
-    pause 3.0
+    centered "{size=40}{color=#b02a2a}THE LOOP CLOSES{/color}{/size}\n\n{size=23}{color=#8c7a69}You died more times than you had left.\nBlackwood Manor keeps what it is given.{/color}{/size}"
+    pause 4.5
+    hide screen cinema_letterbox
     return

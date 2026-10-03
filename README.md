@@ -26,6 +26,7 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
 2. **AI Director & Dialogue Engine (`game/llm.py`)**
    - **Constraint-Bound LLM Dialogue**: Generates contextual lines and player choices while strictly preventing knowledge leakage.
    - **100% Offline Playable Fallback (`game/fallback.json`)**: Seamlessly plays offline without requiring an API key.
+   - **Optional live director**: copy `game/secrets.example.json` to `game/secrets.json` and fill in **one** key (Google/Gemini, Groq, or Anthropic). `secrets.json` is gitignored — never commit it.
 
 3. **Gothic Visuals & Dynamic Strain Shader**
    - Integrated chromatic aberration lens distortion (`11_shader_chromatic-aberration.rpy`) scaling with loop strain.
@@ -37,9 +38,9 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
 ## 🚀 How to Run
 
 ### Option 1: Run the Visual Novel in Ren'Py
-Launch the game directly with the Ren'Py SDK:
+Download the [Ren'Py SDK](https://www.renpy.org/latest/html/), then launch the game from this project directory:
 ```bash
-/home/sonica/Downloads/renpy-8.5.3-sdk/renpy.sh "/home/sonica/projects/Breaking Dimentions"
+/path/to/renpy-8.x.x-sdk/renpy.sh .
 ```
 
 ### Option 2: Run the Headless Simulation CLI
