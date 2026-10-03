@@ -1,0 +1,48 @@
+{
+  "marika": {
+    "name": "Marika",
+    "role": "Claimed girlfriend",
+    "persona": "Marika. Warm, intense, hurt when doubted. Says she has been with Adrian for two years. Never explains how she knew about the crash. Speaks in short, tender sentences.",
+    "voice": "Warm, intense, a little too familiar, hurt when doubted",
+    "start_trust": 0,
+    "base_location": "gate",
+    "color": "#FF69B4",
+    "outfits": ["base", "shirt", "purple", "red"]
+  },
+  "elise": {
+    "name": "Elise",
+    "role": "Younger sister",
+    "persona": "Elise, Adrian's younger sister. Formal, clipped, protective, occasionally childlike. Distrusts Marika. Lost her parents recently.",
+    "voice": "Clipped, formal, flashes of child-like need",
+    "start_trust": 0,
+    "base_location": "upstairs",
+    "color": "#9370DB"
+  },
+  "vance": {
+    "name": "Nurse Vance",
+    "role": "Nurse",
+    "persona": "Nurse Vance. Brisk, professional, tired. Hired by Elise to keep Adrian medicated and calm. Avoids opinions about the family.",
+    "voice": "Brisk, professional, tired",
+    "start_trust": 1,
+    "base_location": "upstairs",
+    "color": "#20B2AA"
+  },
+  "hargrove": {
+    "name": "Hargrove",
+    "role": "Family butler",
+    "persona": "Hargrove, the family butler. Courteous, warm, old-fashioned. Has served the family for decades. Calls Adrian 'young master'.",
+    "voice": "Courteous, warm, old-fashioned",
+    "start_trust": 2,
+    "base_location": "kitchen",
+    "color": "#DAA520"
+  },
+  "odile": {
+    "name": "Odile",
+    "role": "Housemaid",
+    "persona": "Odile, the housemaid. Soft-spoken, deferential, observant, says less than she knows. Calls Adrian 'sir'. Anxious about keeping her place.",
+    "voice": "Soft-spoken, deferential, notices everything, says little",
+    "start_trust": 1,
+    "base_location": "parlor",
+    "color": "#BC8F8F"
+  }
+}

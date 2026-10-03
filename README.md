@@ -1,0 +1,60 @@
+# Return by Death Manor
+
+> **Cambridge x Arcade AI Hackathon — Game Tech Track**  
+> Built for reliability, track fit, and deep AI-driven deduction mechanics.
+
+---
+
+## 📖 Concept
+
+You wake up in a hospital bed with cranial trauma and no memories. A young woman named **Marika** claims to be your girlfriend and brings you to your family's secluded mountain estate. There you meet your sharp younger sister **Elise**, the hired **Nurse Vance**, the longtime butler **Hargrove**, and the housemaid **Odile**.
+
+One of the five is a cold-blooded killer. Every night of Day 2, the killer strikes in the darkness. You die, but wake up on the morning of Day 2 with your memories and notebook intact (**Return by Death**). In your bedside drawer rests your late father's revolver with **one single bullet**.
+
+Deduce the killer before nightfall. Uncover lies, catch deviations in their daily routines, piece together death sensory fragments, and pull the trigger. If you shoot the wrong person, the loop swallows you forever.
+
+---
+
+## 🛠️ Architecture & Features
+
+1. **Deterministic Fairness Engine (`game/engine/`)**
+   - **Pure Python with Zero Engine Dependencies**: Fully testable outside Ren'Py via standard unit tests.
+   - **Automated Solvability & Fairness Validator**: Generates provably solvable mystery runs within 1 to 2 loops.
+   - **Contradiction Engine (`conflicts.py`)**: Automatically highlights active contradictions in your notebook without giving away answers.
+   - **Return by Death State Persistence (`state.py`)**: Keeps notebook entries, discovered facts, and death fragments while cleanly resetting loop day, actions, and trust.
+
+2. **AI Director & Dialogue Engine (`game/llm.py`)**
+   - **Constraint-Bound LLM Dialogue**: Generates contextual lines and player choices while strictly preventing knowledge leakage.
+   - **100% Offline Playable Fallback (`game/fallback.json`)**: Seamlessly plays offline without requiring an API key.
+
+3. **Gothic Visuals & Dynamic Strain Shader**
+   - Integrated chromatic aberration lens distortion (`11_shader_chromatic-aberration.rpy`) scaling with loop strain.
+   - 4-tab Interactive Notebook (Characters, Timeline, Findings, Deaths).
+   - Atmospheric 1080p backgrounds and character expressions.
+
+---
+
+## 🚀 How to Run
+
+### Option 1: Run the Visual Novel in Ren'Py
+Launch the game directly with the Ren'Py SDK:
+```bash
+/home/sonica/Downloads/renpy-8.5.3-sdk/renpy.sh "/home/sonica/projects/Breaking Dimentions"
+```
+
+### Option 2: Run the Headless Simulation CLI
+Play or simulate an automated run in terminal:
+```bash
+python3 game/engine/cli.py --verbose
+```
+
+### Option 3: Run the Test Suite
+Verify that all mystery runs, seeds, state preservation, and fairness rules pass:
+```bash
+python3 -m unittest tests/test_engine.py
+```
+
+---
+
+## 📜 Attributions & Credits
+See [CREDITS.md](CREDITS.md) for full licensing and asset details, including the chromatic aberration shader by **GRIMUMU**.

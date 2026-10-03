@@ -1,0 +1,1133 @@
+{
+  "total_assets": 141,
+  "assets": [
+    {
+      "path": "images/ui/namebox.png",
+      "filename": "namebox.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 4681
+    },
+    {
+      "path": "images/ui/namebox2.png",
+      "filename": "namebox2.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 4732
+    },
+    {
+      "path": "images/ui/textbox UI.png",
+      "filename": "textbox UI.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 28226
+    },
+    {
+      "path": "images/ui/textbox UI2.png",
+      "filename": "textbox UI2.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 28236
+    },
+    {
+      "path": "images/ui/textbox UI3.png",
+      "filename": "textbox UI3.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 26736
+    },
+    {
+      "path": "images/ui/textbox UI4.png",
+      "filename": "textbox UI4.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 26305
+    },
+    {
+      "path": "images/ui/textbox UI5.png",
+      "filename": "textbox UI5.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 33957
+    },
+    {
+      "path": "images/ui/textbox UI6.png",
+      "filename": "textbox UI6.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 33679
+    },
+    {
+      "path": "images/ui/textbox UI7.png",
+      "filename": "textbox UI7.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 33239
+    },
+    {
+      "path": "images/ui/textbox UI8.png",
+      "filename": "textbox UI8.png",
+      "kind": "ui",
+      "character": null,
+      "mood": null,
+      "size_bytes": 34178
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL1.png",
+      "filename": "GIRL_FULL1.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 115187
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL10.png",
+      "filename": "GIRL_FULL10.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 90988
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL11.png",
+      "filename": "GIRL_FULL11.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 107341
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL12.png",
+      "filename": "GIRL_FULL12.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 91000
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL13.png",
+      "filename": "GIRL_FULL13.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 90994
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL14.png",
+      "filename": "GIRL_FULL14.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 90386
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL15.png",
+      "filename": "GIRL_FULL15.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 107495
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL16.png",
+      "filename": "GIRL_FULL16.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 106801
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL2.png",
+      "filename": "GIRL_FULL2.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 115198
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL3.png",
+      "filename": "GIRL_FULL3.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 130314
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL4.png",
+      "filename": "GIRL_FULL4.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 130321
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL5.png",
+      "filename": "GIRL_FULL5.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 90446
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL6.png",
+      "filename": "GIRL_FULL6.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 90676
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL7.png",
+      "filename": "GIRL_FULL7.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 103357
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL8.png",
+      "filename": "GIRL_FULL8.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 103612
+    },
+    {
+      "path": "images/characters/elise/GIRL_FULL9.png",
+      "filename": "GIRL_FULL9.png",
+      "kind": "sprite",
+      "character": "elise",
+      "mood": null,
+      "size_bytes": 107332
+    },
+    {
+      "path": "images/characters/hargrove/BUTLER_FULL1.png",
+      "filename": "BUTLER_FULL1.png",
+      "kind": "sprite",
+      "character": "hargrove",
+      "mood": null,
+      "size_bytes": 112894
+    },
+    {
+      "path": "images/characters/hargrove/BUTLER_FULL2.png",
+      "filename": "BUTLER_FULL2.png",
+      "kind": "sprite",
+      "character": "hargrove",
+      "mood": null,
+      "size_bytes": 112885
+    },
+    {
+      "path": "images/characters/hargrove/BUTLER_FULL3.png",
+      "filename": "BUTLER_FULL3.png",
+      "kind": "sprite",
+      "character": "hargrove",
+      "mood": null,
+      "size_bytes": 123192
+    },
+    {
+      "path": "images/characters/hargrove/BUTLER_FULL4.png",
+      "filename": "BUTLER_FULL4.png",
+      "kind": "sprite",
+      "character": "hargrove",
+      "mood": null,
+      "size_bytes": 123184
+    },
+    {
+      "path": "images/characters/vance/NURSE_FULL1.png",
+      "filename": "NURSE_FULL1.png",
+      "kind": "sprite",
+      "character": "vance",
+      "mood": null,
+      "size_bytes": 93927
+    },
+    {
+      "path": "images/characters/vance/NURSE_FULL2.png",
+      "filename": "NURSE_FULL2.png",
+      "kind": "sprite",
+      "character": "vance",
+      "mood": null,
+      "size_bytes": 93890
+    },
+    {
+      "path": "images/characters/vance/NURSE_FULL3.png",
+      "filename": "NURSE_FULL3.png",
+      "kind": "sprite",
+      "character": "vance",
+      "mood": null,
+      "size_bytes": 407568
+    },
+    {
+      "path": "images/characters/vance/NURSE_FULL4.png",
+      "filename": "NURSE_FULL4.png",
+      "kind": "sprite",
+      "character": "vance",
+      "mood": null,
+      "size_bytes": 407549
+    },
+    {
+      "path": "images/characters/odile/MAID_FULL1.png",
+      "filename": "MAID_FULL1.png",
+      "kind": "sprite",
+      "character": "odile",
+      "mood": null,
+      "size_bytes": 63235
+    },
+    {
+      "path": "images/characters/odile/MAID_FULL2.png",
+      "filename": "MAID_FULL2.png",
+      "kind": "sprite",
+      "character": "odile",
+      "mood": null,
+      "size_bytes": 63371
+    },
+    {
+      "path": "images/characters/odile/MAID_FULL3.png",
+      "filename": "MAID_FULL3.png",
+      "kind": "sprite",
+      "character": "odile",
+      "mood": null,
+      "size_bytes": 160131
+    },
+    {
+      "path": "images/characters/odile/MAID_FULL4.png",
+      "filename": "MAID_FULL4.png",
+      "kind": "sprite",
+      "character": "odile",
+      "mood": null,
+      "size_bytes": 160231
+    },
+    {
+      "path": "images/characters/marika/base/Marika_angry.webp",
+      "filename": "Marika_angry.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "angry",
+      "size_bytes": 196034
+    },
+    {
+      "path": "images/characters/marika/base/Marika_base.webp",
+      "filename": "Marika_base.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "base",
+      "size_bytes": 195792
+    },
+    {
+      "path": "images/characters/marika/base/Marika_creepy.webp",
+      "filename": "Marika_creepy.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "creepy",
+      "size_bytes": 197642
+    },
+    {
+      "path": "images/characters/marika/base/Marika_cry.webp",
+      "filename": "Marika_cry.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "cry",
+      "size_bytes": 196828
+    },
+    {
+      "path": "images/characters/marika/base/Marika_okay.webp",
+      "filename": "Marika_okay.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "okay",
+      "size_bytes": 197108
+    },
+    {
+      "path": "images/characters/marika/base/Marika_sad.webp",
+      "filename": "Marika_sad.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sad",
+      "size_bytes": 195900
+    },
+    {
+      "path": "images/characters/marika/base/Marika_shy.webp",
+      "filename": "Marika_shy.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shy",
+      "size_bytes": 196436
+    },
+    {
+      "path": "images/characters/marika/base/Marika_smirk.webp",
+      "filename": "Marika_smirk.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "smirk",
+      "size_bytes": 195692
+    },
+    {
+      "path": "images/characters/marika/base/Marika_sorry.webp",
+      "filename": "Marika_sorry.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sorry",
+      "size_bytes": 196518
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_angry_shirt_open-blue.webp",
+      "filename": "Marika_angry_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "angry_shirt_open-blue",
+      "size_bytes": 208366
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_base_shirt_open-blue.webp",
+      "filename": "Marika_base_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "base_shirt_open-blue",
+      "size_bytes": 208568
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_creepy_shirt_open-blue.webp",
+      "filename": "Marika_creepy_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "creepy_shirt_open-blue",
+      "size_bytes": 209778
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_cry_shirt_open-blue.webp",
+      "filename": "Marika_cry_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "cry_shirt_open-blue",
+      "size_bytes": 209080
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_okay_shirt_open-blue.webp",
+      "filename": "Marika_okay_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "okay_shirt_open-blue",
+      "size_bytes": 209204
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_sad_shirt_open-blue.webp",
+      "filename": "Marika_sad_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sad_shirt_open-blue",
+      "size_bytes": 208366
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_shy_shirt_open-blue.webp",
+      "filename": "Marika_shy_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shy_shirt_open-blue",
+      "size_bytes": 208596
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_smirk_shirt_open-blue.webp",
+      "filename": "Marika_smirk_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "smirk_shirt_open-blue",
+      "size_bytes": 207770
+    },
+    {
+      "path": "images/characters/marika/shirt/Marika_sorry_shirt_open-blue.webp",
+      "filename": "Marika_sorry_shirt_open-blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sorry_shirt_open-blue",
+      "size_bytes": 208590
+    },
+    {
+      "path": "images/characters/marika/shirt/shirt_blue.webp",
+      "filename": "shirt_blue.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shirt_blue",
+      "size_bytes": 55354
+    },
+    {
+      "path": "images/characters/marika/shirt/shirt_grey-open.webp",
+      "filename": "shirt_grey-open.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shirt_grey-open",
+      "size_bytes": 33630
+    },
+    {
+      "path": "images/characters/marika/shirt/shirt_grey.webp",
+      "filename": "shirt_grey.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shirt_grey",
+      "size_bytes": 36514
+    },
+    {
+      "path": "images/characters/marika/shirt/shirt_red-open.webp",
+      "filename": "shirt_red-open.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shirt_red-open",
+      "size_bytes": 47904
+    },
+    {
+      "path": "images/characters/marika/shirt/shirt_red.webp",
+      "filename": "shirt_red.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shirt_red",
+      "size_bytes": 52002
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_angry_purple-dress.webp",
+      "filename": "Marika_angry_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "angry_purple-dress",
+      "size_bytes": 229084
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_base_purple-dress.webp",
+      "filename": "Marika_base_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "base_purple-dress",
+      "size_bytes": 228884
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_creepy_purple-dress.webp",
+      "filename": "Marika_creepy_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "creepy_purple-dress",
+      "size_bytes": 230748
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_cry_purple-dress.webp",
+      "filename": "Marika_cry_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "cry_purple-dress",
+      "size_bytes": 229944
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_okay_purple-dress.webp",
+      "filename": "Marika_okay_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "okay_purple-dress",
+      "size_bytes": 230034
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_sad_purple-dress.webp",
+      "filename": "Marika_sad_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sad_purple-dress",
+      "size_bytes": 229142
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_shy_purple-dress.webp",
+      "filename": "Marika_shy_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shy_purple-dress",
+      "size_bytes": 229534
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_smirk_purple-dress.webp",
+      "filename": "Marika_smirk_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "smirk_purple-dress",
+      "size_bytes": 228684
+    },
+    {
+      "path": "images/characters/marika/purple/Marika_sorry_purple-dress.webp",
+      "filename": "Marika_sorry_purple-dress.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sorry_purple-dress",
+      "size_bytes": 229700
+    },
+    {
+      "path": "images/characters/marika/red/Marika_angry.webp",
+      "filename": "Marika_angry.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "angry",
+      "size_bytes": 193308
+    },
+    {
+      "path": "images/characters/marika/red/Marika_base.webp",
+      "filename": "Marika_base.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "base",
+      "size_bytes": 193302
+    },
+    {
+      "path": "images/characters/marika/red/Marika_creepy.webp",
+      "filename": "Marika_creepy.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "creepy",
+      "size_bytes": 195114
+    },
+    {
+      "path": "images/characters/marika/red/Marika_cry.webp",
+      "filename": "Marika_cry.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "cry",
+      "size_bytes": 194352
+    },
+    {
+      "path": "images/characters/marika/red/Marika_okay.webp",
+      "filename": "Marika_okay.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "okay",
+      "size_bytes": 194378
+    },
+    {
+      "path": "images/characters/marika/red/Marika_sad.webp",
+      "filename": "Marika_sad.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sad",
+      "size_bytes": 193470
+    },
+    {
+      "path": "images/characters/marika/red/Marika_shy.webp",
+      "filename": "Marika_shy.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "shy",
+      "size_bytes": 193940
+    },
+    {
+      "path": "images/characters/marika/red/Marika_smirk.webp",
+      "filename": "Marika_smirk.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "smirk",
+      "size_bytes": 192960
+    },
+    {
+      "path": "images/characters/marika/red/Marika_sorry.webp",
+      "filename": "Marika_sorry.webp",
+      "kind": "sprite",
+      "character": "marika",
+      "mood": "sorry",
+      "size_bytes": 193862
+    },
+    {
+      "path": "images/props/PROP1.png",
+      "filename": "PROP1.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 7082
+    },
+    {
+      "path": "images/props/PROP10.png",
+      "filename": "PROP10.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 8746
+    },
+    {
+      "path": "images/props/PROP11.png",
+      "filename": "PROP11.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 8774
+    },
+    {
+      "path": "images/props/PROP12.png",
+      "filename": "PROP12.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 39294
+    },
+    {
+      "path": "images/props/PROP13.png",
+      "filename": "PROP13.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 39295
+    },
+    {
+      "path": "images/props/PROP14.png",
+      "filename": "PROP14.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 39289
+    },
+    {
+      "path": "images/props/PROP15.png",
+      "filename": "PROP15.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 69597
+    },
+    {
+      "path": "images/props/PROP16.png",
+      "filename": "PROP16.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 69560
+    },
+    {
+      "path": "images/props/PROP17.png",
+      "filename": "PROP17.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 42760
+    },
+    {
+      "path": "images/props/PROP2.png",
+      "filename": "PROP2.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 14417
+    },
+    {
+      "path": "images/props/PROP3.png",
+      "filename": "PROP3.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 39283
+    },
+    {
+      "path": "images/props/PROP4.png",
+      "filename": "PROP4.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 9797
+    },
+    {
+      "path": "images/props/PROP5.png",
+      "filename": "PROP5.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 69687
+    },
+    {
+      "path": "images/props/PROP6.png",
+      "filename": "PROP6.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 14484
+    },
+    {
+      "path": "images/props/PROP7.png",
+      "filename": "PROP7.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 9690
+    },
+    {
+      "path": "images/props/PROP8.png",
+      "filename": "PROP8.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 7060
+    },
+    {
+      "path": "images/props/PROP9.png",
+      "filename": "PROP9.png",
+      "kind": "prop",
+      "character": null,
+      "mood": null,
+      "size_bytes": 8719
+    },
+    {
+      "path": "images/bg/ROOM1.png",
+      "filename": "ROOM1.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 478482
+    },
+    {
+      "path": "images/bg/ROOM2.png",
+      "filename": "ROOM2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 437338
+    },
+    {
+      "path": "images/bg/ROOM3.png",
+      "filename": "ROOM3.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 507102
+    },
+    {
+      "path": "images/bg/ROOM4.png",
+      "filename": "ROOM4.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 474174
+    },
+    {
+      "path": "images/bg/mansion/backyard_day1.png",
+      "filename": "backyard_day1.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 3007904
+    },
+    {
+      "path": "images/bg/mansion/backyard_day2.png",
+      "filename": "backyard_day2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 3380265
+    },
+    {
+      "path": "images/bg/mansion/backyard_evening.png",
+      "filename": "backyard_evening.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 3465267
+    },
+    {
+      "path": "images/bg/mansion/backyard_night1.png",
+      "filename": "backyard_night1.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2317559
+    },
+    {
+      "path": "images/bg/mansion/backyard_night2.png",
+      "filename": "backyard_night2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2313262
+    },
+    {
+      "path": "images/bg/mansion/backyard_nightl.png",
+      "filename": "backyard_nightl.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2938216
+    },
+    {
+      "path": "images/bg/mansion/basement1.png",
+      "filename": "basement1.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2582008
+    },
+    {
+      "path": "images/bg/mansion/basement2.png",
+      "filename": "basement2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1875315
+    },
+    {
+      "path": "images/bg/mansion/basement3.png",
+      "filename": "basement3.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2652908
+    },
+    {
+      "path": "images/bg/mansion/basement4.png",
+      "filename": "basement4.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2863385
+    },
+    {
+      "path": "images/bg/mansion/basement5.png",
+      "filename": "basement5.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2164973
+    },
+    {
+      "path": "images/bg/mansion/basement6.png",
+      "filename": "basement6.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1911742
+    },
+    {
+      "path": "images/bg/mansion/basement7.png",
+      "filename": "basement7.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1667499
+    },
+    {
+      "path": "images/bg/mansion/basement8.png",
+      "filename": "basement8.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2463072
+    },
+    {
+      "path": "images/bg/mansion/bedroom01_day.png",
+      "filename": "bedroom01_day.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2701260
+    },
+    {
+      "path": "images/bg/mansion/bedroom01_day2.png",
+      "filename": "bedroom01_day2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2450625
+    },
+    {
+      "path": "images/bg/mansion/bedroom01_evening.png",
+      "filename": "bedroom01_evening.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2750389
+    },
+    {
+      "path": "images/bg/mansion/bedroom01_evening2.png",
+      "filename": "bedroom01_evening2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2788018
+    },
+    {
+      "path": "images/bg/mansion/bedroom01_nightl2.png",
+      "filename": "bedroom01_nightl2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2471102
+    },
+    {
+      "path": "images/bg/mansion/bedroom02_day.png",
+      "filename": "bedroom02_day.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 3211620
+    },
+    {
+      "path": "images/bg/mansion/bedroom02_day3.png",
+      "filename": "bedroom02_day3.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 3339200
+    },
+    {
+      "path": "images/bg/mansion/bedroom02_evening.png",
+      "filename": "bedroom02_evening.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 3095042
+    },
+    {
+      "path": "images/bg/mansion/bedroom02_night.png",
+      "filename": "bedroom02_night.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1908168
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_day.png",
+      "filename": "interior_entrance_day.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2697678
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_day2.png",
+      "filename": "interior_entrance_day2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2688122
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_evening.png",
+      "filename": "interior_entrance_evening.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2466594
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_evening2.png",
+      "filename": "interior_entrance_evening2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2597645
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_night.png",
+      "filename": "interior_entrance_night.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1850290
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_night2.png",
+      "filename": "interior_entrance_night2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1797651
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_nightl.png",
+      "filename": "interior_entrance_nightl.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2788791
+    },
+    {
+      "path": "images/bg/mansion/interior_entrance_nightl2.png",
+      "filename": "interior_entrance_nightl2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2710221
+    },
+    {
+      "path": "images/bg/mansion/inthallway1_nightl.png",
+      "filename": "inthallway1_nightl.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2605079
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_day.png",
+      "filename": "inthallway2_day.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2376198
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_day2.png",
+      "filename": "inthallway2_day2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2375853
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_evening.png",
+      "filename": "inthallway2_evening.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2177033
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_evening2.png",
+      "filename": "inthallway2_evening2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2182532
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_night.png",
+      "filename": "inthallway2_night.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1204020
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_night2.png",
+      "filename": "inthallway2_night2.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1276566
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_night3.png",
+      "filename": "inthallway2_night3.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1170852
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_night4.png",
+      "filename": "inthallway2_night4.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 1221309
+    },
+    {
+      "path": "images/bg/mansion/inthallway2_nightl.png",
+      "filename": "inthallway2_nightl.png",
+      "kind": "background",
+      "character": null,
+      "mood": null,
+      "size_bytes": 2539586
+    }
+  ]
+}

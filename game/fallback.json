@@ -1,0 +1,246 @@
+{
+  "choices": {
+    "probe:routine": [
+      "Where do you usually spend your time?",
+      "What's your daily routine like?",
+      "Where might I find you around the house?"
+    ],
+    "probe:house": [
+      "What can you tell me about this place?",
+      "How long have you lived here?",
+      "What's the history of this house?"
+    ],
+    "probe:adrian": [
+      "What do you know about me... before?",
+      "Can you tell me who I was?",
+      "What was I like before the accident?"
+    ],
+    "probe:crash": [
+      "What happened in the crash?",
+      "Do you know how the accident happened?",
+      "Tell me about the accident."
+    ],
+    "comfort": [
+      "I appreciate you being here.",
+      "Thank you for your patience with me.",
+      "It means a lot that you're helping."
+    ],
+    "press": [
+      "I need you to be straight with me.",
+      "Stop dodging. Tell me the truth.",
+      "You're hiding something. What is it?"
+    ],
+    "small_talk": [
+      "This house is quite something.",
+      "How are you holding up?",
+      "Quiet afternoon, isn't it?"
+    ],
+    "leave": [
+      "I should go. Thank you.",
+      "I'll let you get back to things.",
+      "Excuse me, I need to check something."
+    ]
+  },
+  "deflections": {
+    "marika": [
+      "I... I don't want to upset you. Not now, Adrian.",
+      "Can we talk about something else? Please?",
+      "You're pushing too hard. I'm just trying to protect you."
+    ],
+    "elise": [
+      "That is not your concern right now.",
+      "You need to focus on resting, Adrian. Not interrogating me.",
+      "I'd rather not discuss that with you."
+    ],
+    "vance": [
+      "I'm not at liberty to discuss that.",
+      "That falls outside my medical remit, Adrian.",
+      "Let's focus on your physical recovery for now."
+    ],
+    "hargrove": [
+      "I'm afraid that's not my place to say, young master.",
+      "Perhaps another time, sir. Duties call.",
+      "Some family matters are best left undisturbed."
+    ],
+    "odile": [
+      "I... I wouldn't know about such things, sir.",
+      "It's not my place to speak on that, sir.",
+      "I only keep to my cleaning, sir."
+    ]
+  },
+  "routine_claims": {
+    "marika": {"morning": "gate", "afternoon": "parlor", "evening": "gate"},
+    "elise": {"morning": "upstairs", "afternoon": "study", "evening": "upstairs"},
+    "vance": {"morning": "upstairs", "afternoon": "upstairs", "evening": "kitchen"},
+    "hargrove": {"morning": "kitchen", "afternoon": "parlor", "evening": "kitchen"},
+    "odile": {"morning": "parlor", "afternoon": "kitchen", "evening": "parlor"}
+  },
+  "routine_claim_lines": {
+    "marika": "I wait by the gate in the morning and evening. In the afternoon I sometimes sit quietly in the parlor.",
+    "elise": "I spend mornings upstairs, afternoons in the study attending to father's affairs, and evenings upstairs.",
+    "vance": "Mornings and afternoons I attend to medications upstairs. Evenings I take tea in the kitchen.",
+    "hargrove": "Mornings I oversee the kitchen, afternoons I attend to the parlor, and evenings I return to the kitchen.",
+    "odile": "I dust the parlor in the morning, prepare linens in the kitchen in the afternoon, and tend parlor hearths in the evening."
+  },
+  "house_lines": {
+    "marika": [
+      "This house has always felt cold to me. Elise never wanted me past the threshold.",
+      "Your parents were very proud of this estate, though they rarely invited outsiders.",
+      "The gardens by the gate are overgrown, but they're the only place where I feel free."
+    ],
+    "elise": [
+      "Our family has held this manor for three generations. Every hallway holds our history.",
+      "Father kept his ledgers in the study. Mother spent her hours arranging flowers in the parlor.",
+      "Since the crash, the halls echo too loudly. There are too many empty rooms."
+    ],
+    "vance": [
+      "Old houses like this harbor dampness and drafts. It isn't ideal for your convalescence.",
+      "Elise hired me strictly through an agency. I keep to the upper guest rooms mostly.",
+      "The layout is sprawling. One could walk from the kitchen to the study without crossing a soul."
+    ],
+    "hargrove": [
+      "I have served your family since you were in swaddling clothes, young master.",
+      "Your late father and I would discuss estate upkeep in the study every Thursday evening.",
+      "The manor demands constant vigilance. Windows to latch, fires to tend, silver to count."
+    ],
+    "odile": [
+      "I have cleaned these rooms twelve years now, sir. Ever since I arrived from the village.",
+      "The walls are thick stone, but sound travels strangely through the floorboards at night.",
+      "Mistress was very particular about dust behind the library bookcases in the study."
+    ]
+  },
+  "adrian_lines": {
+    "marika": [
+      "You were gentle, Adrian. You loved sketching near the shore, even in winter.",
+      "Before the crash, you promised we would leave this valley together. You bought two tickets.",
+      "You had such a quiet laugh. Seeing you look at me like a stranger breaks my heart."
+    ],
+    "elise": [
+      "You were always stubborn, Adrian. You argued with father constantly over his investments.",
+      "When we were children, you'd hide in the pantry to read adventure novels past midnight.",
+      "You promised me you would never leave the family. Then you brought her here."
+    ],
+    "vance": [
+      "Your hospital chart indicated extensive cranial contusion. Retrograde amnesia is standard.",
+      "You were athletic before the injury, judging from muscle tone. Recovery is largely neurological.",
+      "Patients often feel disoriented when familiar faces fail to spark recollection. Give it time."
+    ],
+    "hargrove": [
+      "You had your mother's kindness and your father's sharp eye, young master.",
+      "I recall teaching you how to hold a fountain pen at the study desk when you were eight.",
+      "You were never one for idle gossip. You always preferred deeds to words."
+    ],
+    "odile": [
+      "You were always polite to the staff, sir. You never raised your voice like the old master.",
+      "You used to leave your pocket watch on the kitchen counter whenever you made midnight tea.",
+      "Forgive me, sir, but you look so pale compared to before the accident."
+    ]
+  },
+  "crash_vague": {
+    "marika": "It was a dreadful accident on the winding pass. The authorities said rain caused the skid.",
+    "elise": "The police called it a tragic collision in the fog. Father lost control on the gorge curve.",
+    "vance": "The emergency report noted trauma consistent with a severe vehicular impact against the ravine barrier.",
+    "hargrove": "A horrific accident on the mountain road, young master. The carriage road was slick with rain.",
+    "odile": "Such a sorrowful crash, sir. The vehicle overturned into the gulley during the squall."
+  },
+  "crash_slip": {
+    "brakes_cut": {
+      "marika": "Everyone knows the brake lines were cut before father even started down the pass.",
+      "elise": "Whoever severed the brake cables knew father would never survive that steep descent.",
+      "vance": "The mechanic's inspection clearly proved the brake fluid lines were sliced through.",
+      "hargrove": "It was foul play, young master; the brake lines had been cut clean through with shears.",
+      "odile": "I heard the mechanic whisper that someone cut the brake lines beneath the carriage."
+    },
+    "drugged_driver": {
+      "marika": "Father never lost control on that road—his evening drink was drugged with sleeping drops.",
+      "elise": "Father wasn't careless; someone placed a heavy sedative drug in his drink before he took the wheel.",
+      "vance": "The post-mortem blood analysis detected a concentrated sedative drug in the driver's drink.",
+      "hargrove": "The master was sober as a judge, yet someone laced his drink with a toxic drug that night.",
+      "odile": "They say the master's drink had a sleeping drug stirred in before he departed in the car."
+    },
+    "forced_off_road": {
+      "marika": "It wasn't a solo spin—another car ran them off the road into the ravine.",
+      "elise": "Father didn't simply veer off; another car forced them off the road into the rocks.",
+      "vance": "The paint scrapes on the rear bumper confirmed another car ran them off the road.",
+      "hargrove": "There were foreign tire treads at the crest, young master; another car ran them off the road.",
+      "odile": "A delivery boy saw headlights following close—another car ran them off the road into the ditch."
+    }
+  },
+  "findings": {
+    "killer": {
+      "inheritance": "A forged last will and testament hidden in the drawer lining, naming the killer as sole beneficiary of the manor estate.",
+      "cover_up": "Altered clinic records and a concealed amber vial of concentrated chloral hydrate sedative.",
+      "obsession": "A locked tin of personal photographs of Adrian, with every other family face scratched violently away."
+    },
+    "decoy": {
+      "lingering": "Muddy footprints and a damp wool blanket tucked beneath the stone bench by the gate.",
+      "unsent_letters": "A packet of tear-stained letters addressed to the late parents, written in Marika's handwriting.",
+      "night_visits": "A pair of embroidered slippers by Adrian's door, beside a scrap of paper reading 'is he breathing?'.",
+      "diary": "A torn journal page in Elise's hurried hand: 'I want to run away. The walls are closing in.'",
+      "phone_calls": "Nurse Vance's handwritten ledger detailing repeated midnight trunk calls to an unlisted city bureau.",
+      "skimming_pills": "Blister strips of prescription sleeping capsules concealed inside an empty tea canister.",
+      "pawned_watch": "A pawn broker's receipt from the capital pawnshop for a gold pocket watch bearing the Hargrove initials.",
+      "drinking": "An opened bottle of rye whiskey secreted behind dry sacks in the back of the pantry.",
+      "stolen_silver": "An ornate heirloom silver soup ladle rolled tightly inside an apron in the linen press.",
+      "eavesdropping": "A thin tumbler glass resting upside down on the hallway floorboard outside the study door."
+    },
+    "world": {
+      "official_report": "The coroner's preliminary report: 'Vehicle damage extensive. Exact mechanical status undetermined pending forensic laboratory review.'",
+      "hospital_letter": "Discharge documentation from St. Jude's Trauma Center: 'Patient Adrian suffered cranial trauma following road collision on October 1st.'"
+    }
+  },
+  "death_fragments": {
+    "hargrove": {
+      "sound": "You hear a slow pocket-watch tick.",
+      "smell": "Starch and beeswax.",
+      "sight": "A white cuff on a dark sleeve."
+    },
+    "vance": {
+      "sound": "A wristwatch tick and squeaking soles.",
+      "smell": "Iodine and starched linen.",
+      "sight": "A white cuff on a grey sleeve."
+    },
+    "elise": {
+      "sound": "A lullaby hummed off-key.",
+      "smell": "Lavender soap.",
+      "sight": "A ribbon trailing in the dark."
+    },
+    "marika": {
+      "sound": "A hymn hummed, faintly bell-like.",
+      "smell": "Lavender and rain.",
+      "sight": "Long pale-gold hair falling across your face."
+    },
+    "odile": {
+      "sound": "A jangle of keys.",
+      "smell": "Lemon polish and starch.",
+      "sight": "A white lace cap in the dark."
+    }
+  },
+  "search_blocked": "{name} is present in the room, watching your every movement. You cannot search without drawing suspicion.",
+  "search_nothing": "You search through drawers and shelves, but uncover nothing out of the ordinary here.",
+  "epilogues": {
+    "inheritance": {
+      "marika": "Marika falls to her knees, trembling: 'The will was forged before you ever returned. I thought if you and Elise were gone, everything would finally be mine. I'm sorry... I'm so sorry.'",
+      "elise": "Elise stares cold and unblinking down the barrel: 'This house was meant for me alone. Father was going to disinherit us both for his charity foundations. I protected what is mine.'",
+      "vance": "Nurse Vance drops her clinical facade, exhaling sharply: 'The will named my silent partners. A tidy sum for ensuring the remaining heirs succumbed to accidental trauma. Pure business.'",
+      "hargrove": "Hargrove bows his head in shame: 'Forty-two years of service, young master, and dismissed with mere pennies in the draft will. I only wanted what my lifetime of labor earned.'",
+      "odile": "Odile weeps into her apron: 'My brothers were starving in the lower quarter, sir. The forged codicil would have bought our passage to America. Forgive me...'"
+    },
+    "cover_up": {
+      "marika": "Marika whispers in agony: 'I slipped the sedative into your father's tea so he wouldn't sign the transfer. I never meant for him to drive! When you woke up, I knew you'd remember.'",
+      "elise": "Elise shivers, tears breaking her composure: 'Father found out what I had done with the bank vaults. I gave him the drops to make him sleep. The crash was an accident, but you were remembering!'",
+      "vance": "Vance's voice is taut: 'A fatal medication error on my watch three months ago was covered up by your father. If your memory returned, my medical license and freedom were finished.'",
+      "hargrove": "Hargrove's hand trembles: 'I had borrowed from the safe, sir. The master had confronted me that evening. I only intended to induce slumber to replace the funds before dawn.'",
+      "odile": "Odile cowers against the wall: 'The master saw me taking the silver. He threatened the constables. I put the sleeping tonic into his flask so he would forget. I didn't mean to kill them!'"
+    },
+    "obsession": {
+      "marika": "Marika laughs with broken affection: 'Every picture, every diary, everyone who stood between us... I tore them away. You were mine in the hospital, and you will stay mine forever.'",
+      "elise": "Elise's eyes burn with desperate intensity: 'You were the only person in this wretched family who ever cared for me! I ran the car off the road so you would never walk away again.'",
+      "vance": "Nurse Vance steps forward, gaze unhinged: 'I nursed you through three hospitalizations. None of these parasites deserved you. You needed someone who truly understood your fragility.'",
+      "hargrove": "Hargrove speaks with quiet madness: 'You are the only worthy scion of this bloodline, young master. The others were parasites dragging you down. I cleansed your path.'",
+      "odile": "Odile clings to the photographs: 'You were the only one who saw me as human in this whole dark house! I couldn't let them take you away to the city. You had to stay here with me.'"
+    }
+  },
+  "swallowed_ending": "The hairline cracks shatter into blinding light. Time collapses upon itself. Adrian's consciousness dissolves into the cold stone walls of the manor. The loop closes permanently.",
+  "victory_coda": "In the hush that settles over the manor, a forgotten memory surfaces clearly: the melody Marika hummed on the balcony that rainy autumn morning before the world fractured."
+}
