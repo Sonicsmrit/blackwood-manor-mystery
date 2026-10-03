@@ -1,4 +1,4 @@
-# Return by Death Manor - Credits
+# Credits
 
 ## Developed for Cambridge x Arcade AI Hackathon, Game Tech Track
 
