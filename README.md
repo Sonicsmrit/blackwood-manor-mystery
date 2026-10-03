@@ -1,7 +1,6 @@
-# Return by Death Manor
+# Blackwood Manor Mystery
 
 > **Cambridge x Arcade AI Hackathon — Game Tech Track**  
-> Built for reliability, track fit, and deep AI-driven deduction mechanics.
 
 ---
 
