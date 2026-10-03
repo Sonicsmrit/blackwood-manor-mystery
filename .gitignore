@@ -24,3 +24,19 @@
 /dialogue.tab
 /dialogue.txt
 /strings.json
+
+# Python bytecode.
+__pycache__/
+*.pyc
+
+# API keys. Copy secrets.example.json to secrets.json and fill it in locally --
+# the filled-in copy must never be committed.
+**/secrets.json
+
+# Asset archives and local tooling that live beside the project, not in it.
+/*.zip
+/.freebuff/
+/.vscode/
+# Duplicate of game/11_shader_chromatic-aberration.rpy, which is the copy Ren'Py
+# actually loads. Kept here only as a reference of where the shader came from.
+/11_shader_chromatic-aberration.rpy
