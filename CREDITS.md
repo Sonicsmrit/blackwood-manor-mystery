@@ -1,8 +1,6 @@
 # Return by Death Manor - Credits
 
-## Developers & Creators
-- **Game Design & Direction**: Developed for Cambridge x Arcade AI Hackathon, Game Tech Track
-- **Story & Logic Architecture**: Return by Death Manor Team
+## Developed for Cambridge x Arcade AI Hackathon, Game Tech Track
 
 ## Third-Party Assets & Tools
 
@@ -21,4 +19,3 @@
 
 ### Engine & Technologies
 - **Ren'Py Visual Novel Engine**: Pygame / Ren'Py 8.x
-- **Anthropic Claude API**: For Story Director & constrained contextual dialogue generation
