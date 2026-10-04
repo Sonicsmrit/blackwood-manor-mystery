@@ -520,6 +520,64 @@ def _loop_pressure(loop_no: int, strain: int, deaths: int) -> str:
     )
 
 
+def burial_guilt_pressure(name: str, killed_name: str = "", at_night: bool = False) -> str:
+    """The post-burial voice, for the after-hours round after a wrong kill.
+
+    The survivors did not merely find a body: they dug the grave and they are now
+    covering for Adrian. That makes them more forthcoming -- guilt is the only
+    lever this house has left on someone who already has a hand in the crime --
+    and more fragile at the same time. Both have to be stated or the tone comes
+    out as either a confession or a performance.
+
+    at_night selects the hour. The revolver is available in any slot, so the
+    burial can happen at four in the afternoon; without this branch the
+    survivors would talk about the small hours in broad daylight.
+
+    Deliberately free of FORBIDDEN_WORDS. Validation rejects any line the model
+    writes containing them, so seeding one into the instructions here would start
+    rejecting every reply instead of shaping them. test_11 guards this.
+    """
+    if not killed_name:
+        killed_name = "The one you buried"
+    if at_night:
+        header = "=== TONIGHT, AND WHAT YOU DID TOGETHER ==="
+        hour = "It is the small hours and the house will not settle."
+        cover = ("Covering for him is not a favour to him; it is the only "
+                 "arrangement left that keeps you both breathing.")
+        awake = "why everyone is still awake"
+    else:
+        header = "=== TODAY, AND WHAT YOU DID TOGETHER ==="
+        hour = ("It is the middle of the day, the curtains are still open, and "
+                "there is nowhere in this house for any of you to go.")
+        cover = ("Covering for him is not a favour to him. It is a thing done in "
+                 "full daylight, by people who will have to keep doing it "
+                 "tomorrow, in front of the same people.")
+        awake = "why nobody has gone back to their own work"
+    return (
+        f"{header}\n"
+        f"You are {name}. {hour} "
+        f"{killed_name} is dead under the east wall, in ground you turned over yourself. "
+        "Adrian did it. You saw the body and you did not ask him a single question, "
+        "and then four of you went out with a spade and helped put them in the ground.\n\n"
+        "You are not loyal to Adrian. You are bound to him, which is worse and does not wear off. "
+        "It is the only reason you are still sitting in his parlor instead of walking to the constabulary, "
+        "and you have already worked out what becomes of a servant who helped hide a body. "
+        f"{cover}\n\n"
+        "HOW YOU SOUND NOW:\n"
+        "- Exhausted past your own limits. The composure you kept at dinner is gone.\n"
+        "- Frightened in a way that keeps leaking: sentences that start and do not finish, "
+        "and answers to questions he has not asked yet.\n"
+        "- Guilty. Let it out once, plainly, in your own words, then shut up about it.\n\n"
+        "WHY YOU ARE TALKING AT ALL:\n"
+        "Nobody in this room is innocent any more and he knows it, which is why he is still here "
+        "with you instead of sitting across a table from you. Guilt loosens tongues that plain fear "
+        "would keep shut. If he presses on the crash, on the family, or on " + awake + ", "
+        "you may let slip something you would never have said at breakfast.\n\n"
+        "You have no memory of any other version of this. Never suggest otherwise, and never "
+        "speak of repeating, undoing or reliving what happened."
+    )
+
+
 # ─── Prompt Building ─────────────────────────────────────────────────────────
 
 def _build_system_prompt(char_id: str, name: str, persona: str, scene: Optional[Dict[str, Any]] = None) -> str:
@@ -538,6 +596,15 @@ def _build_system_prompt(char_id: str, name: str, persona: str, scene: Optional[
         int(scene.get("strain", 0) or 0),
         int(scene.get("deaths", 0) or 0),
     )
+    # Only the knife's after-hours round has a burial behind it. The revolver's
+    # wrong kill jumps straight to the death screen, so it never gets here.
+    burial = ""
+    if scene.get("after_hours"):
+        burial = burial_guilt_pressure(
+            name,
+            str(scene.get("killed_name", "") or ""),
+            bool(scene.get("at_night", False)),
+        )
 
     if present_names:
         witnesses = (
@@ -570,6 +637,7 @@ a pause, a refusal to answer in front of someone, or one barbed half-sentence.
 === THE MAN IN FRONT OF YOU ===
 {pressure}
 
+{burial}
 === HUMANIZER & NATURAL SPEECH DIRECTIVES ===
 1. SPOKEN WORDS ONLY: Output ONLY spoken words that {name} says aloud with their mouth. NEVER include narration, stage actions, or asterisk descriptions (NO *sighs*, NO *looks down*, NO *whispering*). Convey emotion purely through authentic diction, pauses, and the 'expression' field.
 2. HUMAN REALISM: People in trauma do not deliver neat essays. Speak with natural cadence, pauses ('...'), interruptions ('—'), and subtext. Never sound robotic.
@@ -622,7 +690,13 @@ def _build_user_prompt(
             "people_present": scene.get("present_characters", []),
             "loop_number": scene.get("loop_number", 1),
             "strain": scene.get("strain", 0),
-            "revolver_carried": scene.get("bullet_carried", False)
+            "revolver_carried": scene.get("bullet_carried", False),
+            # After-hours only: true when these people buried someone Adrian
+            # killed earlier tonight, and are now covering for him.
+            "burial_tonight": bool(scene.get("after_hours", False)),
+            "burial_was_at_night": bool(scene.get("at_night", False)),
+            "who_died_tonight": scene.get("killed_name", ""),
+            "weapon_used": scene.get("weapon", "")
         },
         "character_secret_and_role": scene.get("secret_truth", "Normal resident of the manor."),
         "player_action": intent,

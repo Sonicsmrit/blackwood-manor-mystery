@@ -97,6 +97,18 @@ def new_game_state(run_state: RunState, start_day: int = 1) -> GameState:
         fragments_seen=[]
     )
 
+def time_of_day_label(slot: str, at_night: bool) -> str:
+    """The top-left time-of-day label shown in the HUD.
+
+    The engine only models the three slots in SLOTS and nothing ever assigns a
+    night slot, so during the night sequence current_slot is still 'evening'.
+    at_night is set only by the night-menu kill path, so a killing that happens in
+    the afternoon keeps reporting the afternoon instead of lying about the hour.
+    Kept as a free function so it stays unit-testable; the .rpy layer wraps it to
+    read the store.
+    """
+    return "Night" if at_night else str(slot).capitalize()
+
 def reset_loop(game_state: GameState, run_state: RunState) -> GameState:
     """
     Apply Return by Death reset.

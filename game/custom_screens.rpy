@@ -86,7 +86,7 @@ screen hud():
             vbox:
                 spacing 2
                 text "DAY [game_state.current_day]" style "goth_label"
-                text "[game_state.current_slot.capitalize()]" style "goth_value"
+                text "[get_time_display()]" style "goth_value"
 
             add Solid(GOTH_RAIL) xysize (1, 42) yalign 0.5
 

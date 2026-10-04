@@ -238,5 +238,186 @@ class TestGameEngine(unittest.TestCase):
         self.assertIn("Elise", get_motive("inheritance", "marika"))
         self.assertNotIn("Elise", get_motive("inheritance", "elise"))
 
+    def test_10_after_hours_reads_as_night(self):
+        """Test 10: The HUD must not say 'Evening' during the midnight burial round.
+
+        Regression guard. The engine models three slots (constants.SLOTS) and
+        nothing ever assigns a night slot, so the midnight sequence leaves
+        current_slot on 'evening' while the scene is the small hours.
+
+        The revolver changed the shape of this: it is available in any slot, so a
+        killing can start the same burial round in the afternoon. The label is
+        therefore driven by night_sequence, not merely by being in after-hours --
+        asserting that here is what stops a 3pm burial from claiming to be night.
+        """
+        from engine.state import time_of_day_label
+
+        # The midnight sequence wins over whatever the slot says, including the
+        # 'evening' it actually holds.
+        for slot in ["morning", "afternoon", "evening", "night"]:
+            self.assertEqual(
+                time_of_day_label(slot, True), "Night",
+                f"midnight sequence must read Night, not {slot!r}")
+        self.assertEqual(time_of_day_label("evening", True), "Night")
+
+        # Daytime kills keep the real clock, including the 7pm case whose slot is
+        # indistinguishable from the midnight one.
+        for slot in ["morning", "afternoon", "evening"]:
+            self.assertEqual(
+                time_of_day_label(slot, False), slot.capitalize(),
+                f"a daytime killing must keep reporting {slot!r}")
+
+        # The real slot sequence never reaches 'night', so the flag is the only
+        # thing that can produce the label.
+        from engine.constants import SLOTS
+        self.assertNotIn("night", SLOTS)
+
+    def test_11_burial_prompt_cannot_poison_validation(self):
+        """Test 11: The injected burial instructions must not seed forbidden words.
+
+        Regression guard, and the subtlest of these tests. validate_dialogue_response
+        runs _forbidden_hit over every generated line, and FORBIDDEN_WORDS contains
+        'loop' and 'reset'. Seeding one of those into the prompt does not fail a
+        test -- it silently makes the model echo it, and then every reply gets
+        rejected and the game falls back. So the guilt block has to be provably
+        clean, and the vault it gets injected into has to be reachable.
+        """
+        from llm import burial_guilt_pressure, _forbidden_hit
+
+        for at_night in [False, True]:
+            for killed in ["", "Marika", "Elise", "Odile", "Hargrove", "Vance"]:
+                block = burial_guilt_pressure("Odile", killed, at_night)
+                self.assertTrue(block.strip(), "burial block must not be empty")
+                hit = _forbidden_hit(block.lower())
+                self.assertIsNone(
+                    hit,
+                    f"burial block seeds forbidden word {hit!r} "
+                    f"(killed={killed!r}, at_night={at_night})")
+
+        # A model that parrots the block back is still rejected, proving the
+        # validator is actually live over this text.
+        echoed = {"npc_line": "I keep thinking about the loop we are all in.",
+                  "choices": []}
+        self.assertIsNotNone(_forbidden_hit(echoed["npc_line"].lower()))
+
+        # The block must also actually be reachable from the system prompt.
+        from llm import _build_system_prompt
+        scene = {"after_hours": True, "at_night": True, "killed_name": "Marika",
+                 "day": 2, "slot": "night", "location": "the parlor",
+                 "present_characters": ["Odile"], "loop_number": 1,
+                 "strain": 0, "deaths": 0}
+        prompt = _build_system_prompt("odile", "Odile", "servant", scene)
+        self.assertIn("east wall", prompt.lower())
+        self.assertIn("spade", prompt.lower())
+        self.assertIn("Marika", prompt)
+
+        # Absent after-hours, the burial block must not appear at all.
+        normal = {"present_characters": ["Odile"], "loop_number": 1,
+                  "strain": 0, "deaths": 0}
+        self.assertNotIn(
+            "east wall",
+            _build_system_prompt("odile", "Odile", "servant", normal))
+
+    def test_13_daytime_burial_never_claims_night(self):
+        """Test 13: A daylight killing must not produce small-hours dialogue.
+
+        The revolver is available in any slot, so the burial round can run in the
+        afternoon with current_slot still on 'afternoon'. Only the midnight menu
+        sets night_sequence, so the guilt block has to branch on it. Without the
+        branch the survivors talk about the small hours in broad daylight, which
+        is the one thing that makes the shared scene read as a bug.
+        """
+        from llm import burial_guilt_pressure, _build_system_prompt
+
+        day = burial_guilt_pressure("Odile", "Marika", at_night=False)
+        night = burial_guilt_pressure("Odile", "Marika", at_night=True)
+
+        self.assertNotIn("small hours", day.lower())
+        self.assertIn("small hours", night.lower())
+        self.assertIn("TODAY", day)
+        self.assertIn("TONIGHT", night)
+
+        # "still awake" is a midnight detail; the daytime variant must not use it.
+        self.assertNotIn("still awake", day.lower())
+        self.assertIn("still awake", night.lower())
+
+        # And the same has to hold through the assembled prompt, for a slot that
+        # is genuinely the afternoon.
+        scene = {"after_hours": True, "at_night": False, "killed_name": "Marika",
+                 "day": 2, "slot": "afternoon", "location": "the parlor",
+                 "present_characters": ["Odile"], "loop_number": 1,
+                 "strain": 0, "deaths": 0}
+        prompt = _build_system_prompt("odile", "Odile", "servant", scene)
+        self.assertIn("TODAY, AND WHAT YOU DID TOGETHER", prompt)
+        self.assertNotIn("small hours", prompt.lower())
+
+    def test_14_coverup_backgrounds_exist_for_every_hour(self):
+        """Test 14: get_scene_bg must resolve to a declared image for every case.
+
+        The burial scene now asks for a background instead of hardcoding
+        bg parlor_night, so it can hit a name no `image` statement declares --
+        which is a runtime crash, not a fallback. This walks the same three cases
+        the scene can produce and checks each against the images script.rpy
+        actually defines.
+        """
+        images = os.path.join(base_dir, "game", "script.rpy")
+        with open(images, encoding="utf-8") as fh:
+            declared = set()
+            for line in fh:
+                line = line.strip()
+                if line.startswith("image bg "):
+                    # "image bg parlor = ..." -> the tag is "bg parlor".
+                    declared.add(" ".join(line.split()[1:3]))
+
+        locations = ["parlor", "study", "kitchen", "upstairs", "gate"]
+
+        # Mirrors get_scene_bg in script.rpy.
+        for loc in locations:
+            for slot, at_night in [(s, False) for s in
+                                   ["morning", "afternoon", "evening"]] + \
+                                  [(s, True) for s in
+                                   ["morning", "afternoon", "evening"]]:
+                name = ("bg " + loc + "_night") if at_night else (
+                    "bg " + loc + "_evening" if slot == "evening"
+                    else "bg " + loc)
+                self.assertIn(
+                    name, declared,
+                    f"coverup background {name!r} (loc={loc}, slot={slot}, "
+                    f"at_night={at_night}) is not declared in script.rpy")
+
+    def test_12_wrong_kill_reaches_the_llm_context(self):
+        """Test 12: The burial state must survive into the prompt that is actually sent.
+
+        The whole stress fix depends on build_conversation_context threading
+        wrong_kill through. That function lives in script.rpy and cannot be
+        imported here, so this asserts the contract it has to satisfy instead:
+        the keys _build_system_prompt and _build_user_prompt read.
+        """
+        from llm import _build_system_prompt, _build_user_prompt
+
+        scene = {"after_hours": True, "wrong_kill": True, "killed_name": "Marika",
+                 "at_night": True, "weapon": "knife",
+                 "day": 2, "slot": "night", "location": "the parlor",
+                 "present_characters": ["Odile", "Vance"], "loop_number": 2,
+                 "strain": 2, "deaths": 1, "bullet_carried": False,
+                 "is_killer": False, "discussed_topics": [],
+                 "secret_truth": "INNOCENT: you are hiding a secret."}
+
+        system = _build_system_prompt("odile", "Odile", "servant", scene)
+        self.assertIn("TONIGHT, AND WHAT YOU DID TOGETHER", system)
+
+        user = _build_user_prompt("probe:routine", 1, [], False,
+                                  ["probe:routine"], {"scene": scene, "history": []})
+        self.assertIn('"burial_tonight": true', user.replace("True", "true"))
+        self.assertIn('"burial_was_at_night": true', user.replace("True", "true"))
+        self.assertIn("Marika", user)
+
+        # A wrong kill that has NOT yet reached after-hours (revolver path, or
+        # the instant between the stab and the burial) must not drag in the
+        # grave voice early.
+        early = dict(scene, after_hours=False)
+        self.assertNotIn(
+            "east wall", _build_system_prompt("odile", "Odile", "servant", early))
+
 if __name__ == "__main__":
     unittest.main()

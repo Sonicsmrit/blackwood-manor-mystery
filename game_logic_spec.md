@@ -312,7 +312,25 @@ At least one choice in each of the first 3 turns must be a probe on a not-yet-re
 
 - Day 2 only. Target must be present at the current location.
 - **Target is the killer** → victory, jump to the ending.
-- **Target is innocent** → the target is removed from the rest of the day, the bullet is spent, `wrong_kill = True`. Night comes.
+- **Target is innocent** → the target is removed from the rest of the day, the bullet is spent, `wrong_kill = True`. The burial round begins (section 13.2.2).
+- The revolver is available in **any** Day 2 slot, including a daytime one. The knife remains night-only. Both wrong kills set `wrong_kill_weapon` to `"revolver"` or `"knife"` and route to the shared `wrong_kill_coverup` → `after_hours` label.
+
+### 9.1a The clock is not moved by a killing
+
+A killing does **not** set `current_slot` to `"evening"` or to a night value. The engine models exactly three slots (`engine/constants.py: SLOTS`), and adding a fourth would `KeyError` in `routine_claims`, the position map, the validator and the solver.
+
+Two separate flags carry the distinction:
+
+| Flag | Meaning | Set by |
+|---|---|---|
+| `night_sequence` | the genuine midnight menu | `day2_night_transition` → `True`; `day2_morning_transition` → `False` |
+| `after_hours_active` | the burial reward round is running | `after_hours` |
+
+`night_sequence` exists because a daytime revolver kill can occur while `current_slot == "evening"` — indistinguishable from the midnight slot by value alone. It is the flag, not the slot, that decides whether the HUD reads `Night`, whether the burial art is `_night`, and whether the survivors talk about the small hours.
+
+Both flags are cleared by `reset_loop` alongside `revolver_found` and `knife_found`.
+
+After the burial round the flow is unchanged: `advance_slot` sees `after_hours_active` and jumps straight to `night_death`, so a daytime killing still ends with Adrian dying that night.
 
 ### 9.2 Night
 
@@ -515,6 +533,73 @@ title → director (loading) → day1_intro (scripted) → day1_slots → day1_n
 → [shot killer] ending_victory
 → [else] night_death → fragment → strain check → [swallowed] ending_swallowed | reset → day2_morning
 ```
+
+#### 13.2.1 Time of day in the HUD
+
+`SLOTS` is exactly `["morning", "afternoon", "evening"]` and **no night slot exists**.
+`advance_slot` leaves `current_slot == "evening"` when it routes into the night, so the
+HUD cannot derive "Night" from the slot.
+
+The display therefore goes through `time_of_day_label(slot, at_night)` in
+`engine/state.py`, wrapped by `get_time_display()` in `script.rpy` for the HUD's top-left
+label. The flag is `night_sequence`, **not** `after_hours_active`: the revolver is available
+in any slot, so a daytime killing opens the same burial round and must keep reporting its
+real hour.
+
+| `night_sequence` | label |
+| --- | --- |
+| `False` | `slot.capitalize()` (`Morning` / `Afternoon` / `Evening`) |
+| `True` | `Night` |
+
+Do **not** add a fourth slot to `SLOTS` to fix this. `routine_claims` is keyed by slot in
+four places (`generator.py`, `validator.py`, `solver.py`, and inline in `script.rpy`)
+and a night slot raises `KeyError` there, makes `get_bg_image_name` fall through to daytime
+art, and breaks the fairness validator. The display layer is the only correct place.
+
+Background art follows the same flag via `get_scene_bg(loc, slot, at_night)`, which returns
+`bg <loc>_night` when `at_night`, `bg <loc>_evening` in the evening slot, else `bg <loc>`.
+`after_hours` pins `current_location` to the parlor, and the player cannot travel during
+after-hours (actions are talk / search / shoot / pass only), so only the parlor and gate
+backgrounds are reachable there. `test_14` asserts every case resolves to a declared `image`.
+
+#### 13.2.2 The burial round (wrong kill, both weapons)
+
+Both weapons route to one label. `execute_shot` and `execute_stab` each record
+`wrong_kill_weapon` and, on a wrong kill, jump to `wrong_kill_coverup` → `after_hours`.
+
+| | `night_sequence` | Survivor reaction | Surrenders | Buried |
+| --- | --- | --- | --- | --- |
+| Knife | `True` (night menu only) | nothing heard | knife | knife |
+| Revolver | either | shot heard outside | revolver | revolver |
+
+The revolver's report is the only difference in reach; the burial, the trust, the round and
+the `night_death` handoff are shared.
+
+`build_conversation_context` threads `wrong_kill`, `after_hours`, `at_night`, `weapon` and
+`killed_name` into `scene_desc`. When `night_sequence` is set, `scene_desc["slot"]` is
+reported to the LLM as `"night"`; otherwise the real slot is reported, so an afternoon
+burial is never described as midnight.
+
+`llm.burial_guilt_pressure(name, killed_name, at_night)` then injects a
+`=== TONIGHT, AND WHAT YOU DID TOGETHER ===` or `=== TODAY, AND WHAT YOU DID TOGETHER ===`
+block. The `at_night` branch controls the hour framing ("the small hours" vs. "middle of
+the day, the curtains are still open") and the `why everyone is still awake` detail.
+Voice rules:
+
+- The survivors dug the grave and are covering for Adrian. They **know** he did it.
+- They are **bound** to him, not loyal to him — that is permanent and worse.
+- Frightened and exhausted; composure from dinner is gone; guilt said once, then dropped.
+- More forthcoming, because guilt is the only lever left on someone already implicated.
+  This coexists with the `+1` trust `after_hours` grants (`script.rpy`): guilt opens them
+  up *and* destabilises them, and both must be stated or the tone reads as one or the other.
+- Never mention repeating, undoing or reliving what happened. The night-only wording was
+  widened to "what happened" so the closing line does not contradict a daylight burial.
+
+**Hard constraint:** this block must stay free of `FORBIDDEN_WORDS`. Validation runs
+`_forbidden_hit` over every generated line, so seeding `loop` or `reset` into the
+instructions does not fail a test — it makes the model echo the word, and then every reply
+is rejected and the game silently falls back to canned lines. `test_11` guards this, across
+both `at_night` values.
 
 ### 13.3 Scripted scenes (Day 1)
 

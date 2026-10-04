@@ -16,7 +16,7 @@ init python:
         CHARACTERS, TOPICS, BASE_LOCATIONS, AGENDAS, DEATH_FRAGMENTS,
         get_motive
     )
-    from engine.state import RunState, GameState, new_game_state, reset_loop
+    from engine.state import RunState, GameState, new_game_state, reset_loop, time_of_day_label
     import time
     from engine.generator import generate_run
     from engine.facts import build_all_facts, get_available_facts, get_search_findings
@@ -74,6 +74,18 @@ init python:
             if f.char == char and f.id in game_state.known_facts and getattr(f, "topic", None)
         })
 
+        # Report the hour to the LLM as "night" only for the genuine midnight sequence.
+    # A revolver fired in the afternoon runs the same burial round but is still
+    # the afternoon, so the model must not be told otherwise.
+    # game_state.current_slot is deliberately left alone -- it feeds the engine's
+    # three-slot model, where a fourth value would KeyError.
+    if night_sequence:
+        slot = "night"
+
+        killed_name = ""
+        if game_state.wrong_kill and game_state.target_shot:
+            killed_name = get_character_display_name(game_state.target_shot)
+
         scene_desc = {
             "day": day,
             "slot": slot,
@@ -84,7 +96,12 @@ init python:
             "deaths": len(game_state.fragments_seen),
             "discussed_topics": discussed,
             "bullet_carried": game_state.bullet_available,
-            "is_killer": is_killer
+            "is_killer": is_killer,
+            "wrong_kill": game_state.wrong_kill,
+            "after_hours": after_hours_active,
+            "at_night": night_sequence,
+            "weapon": wrong_kill_weapon,
+            "killed_name": killed_name
         }
 
         if is_killer:
@@ -95,7 +112,14 @@ init python:
                 "KILLER: You are the murderer who orchestrated the fatal crash by " + str(cause) + ". "
                 "Your hidden motive is: " + str(motive) + ". "
                 "If pressed on the crash or motive, you might accidentally slip keywords like: " + slips + ". "
-                "Tonight you plan to finish Adrian off. Maintain your composure, but show subtle cracks if cornered."
+                + (
+                    # Stale once the knife has already been used on an innocent:
+                    # the night is already violent, so there is no clean kill left.
+                    "You still mean to finish Adrian off, and now there is a body in the ground to do it beside. "
+                    "Maintain your composure, but show subtle cracks if cornered."
+                    if after_hours_active else
+                    "Tonight you plan to finish Adrian off. Maintain your composure, but show subtle cracks if cornered."
+                )
             )
         else:
             scene_desc["secret_truth"] = (
@@ -244,6 +268,16 @@ default knife_found = False
 default knife_taken_back = False
 default after_hours_active = False
 
+# True only when the killing came out of the midnight menu. Distinct from
+# after_hours_active: the revolver is available in any slot, so a killing can
+# start the burial round in the afternoon, when current_slot is still "afternoon"
+# and the HUD must keep saying Afternoon.
+default night_sequence = False
+
+# Which weapon made the wrong kill: "revolver" or "knife". Drives the burial
+# scene's discovery and surrender lines.
+default wrong_kill_weapon = ""
+
 # Cover-up speakers are assigned by role at runtime, since any of the five
 # may be the one on the floor. Declared here so they always resolve.
 default lead_char = elise_char
@@ -255,6 +289,23 @@ default taker_char = odile_char
 ## Helper Functions
 ################################################################################
 init python:
+    def get_time_display():
+        """Top-left time label. The midnight menu leaves current_slot on
+        'evening' because the engine models three slots and no night slot, so
+        night_sequence supplies the hour. A daytime killing keeps its real slot.
+        See time_of_day_label."""
+        return time_of_day_label(game_state.current_slot, night_sequence)
+
+    def get_scene_bg(loc, slot, at_night):
+        """Background for a scene that must respect the hour.
+
+        Every location already ships an _evening and a _night variant; morning and
+        afternoon share the plain daytime image.
+        """
+        if at_night:
+            return "bg " + loc + "_night"
+        return get_bg_image_name(loc, slot)
+
     def get_bg_image_name(loc, slot):
         """Return the Ren'Py image name for a location at the current time slot."""
         if slot == "evening":
@@ -1011,6 +1062,7 @@ label day2_morning_transition:
         game_state.current_slot = "morning"
         game_state.slot_actions_remaining = ACTIONS_PER_SLOT
         game_state.bullet_available = revolver_found
+        night_sequence = False
 
     show screen cinema_letterbox
     scene bg upstairs with fade
@@ -1043,6 +1095,7 @@ label day2_night_transition:
     hide screen hud
     show screen cinema_letterbox
     scene bg parlor_night with fade
+    $ night_sequence = True
     
     play sound "audio/clock_tick.wav"
     pause 0.5
@@ -1089,6 +1142,7 @@ label day2_night_transition:
 ################################################################################
 label execute_shot:
     $ game_state.bullet_available = False
+    $ wrong_kill_weapon = "revolver"
     $ shot_target = game_state.target_shot
     $ tname = get_character_display_name(shot_target)
 
@@ -1114,8 +1168,9 @@ label execute_shot:
         play sound "audio/revolver_cock.wav"
         "You pull the trigger again in blind panic—*CLICK*."
         "Empty. You shot the wrong person."
-        "From the shadows behind you, calm footsteps begin to approach..."
-        jump night_death
+        # No footsteps here: the coverup opens with them arriving, so the old
+        # "calm footsteps begin to approach" line would land the same beat twice.
+        jump wrong_kill_coverup
 
 ################################################################################
 ## Knife Execution
@@ -1129,6 +1184,7 @@ label execute_shot:
 label execute_stab:
     $ knife_found = False
     $ knife_taken_back = True
+    $ wrong_kill_weapon = "knife"
     $ stab_target = game_state.target_shot
     $ tname = get_character_display_name(stab_target)
 
@@ -1151,16 +1207,24 @@ label execute_stab:
         jump ending_victory
 
     $ game_state.wrong_kill = True
-    jump knife_coverup
+    jump wrong_kill_coverup
 
 
 ################################################################################
 ## The Cover-Up
 ################################################################################
 
-label knife_coverup:
+label wrong_kill_coverup:
     python:
         survivors = [c for c in CHARACTERS if c != game_state.target_shot]
+
+        # The hour. True when the killing came out of the midnight menu; false
+        # when the revolver was fired in a normal slot, where current_slot is
+        # still "morning"/"afternoon"/"evening" and must not be talked about as
+        # though it were the small hours.
+        _at_night = night_sequence
+        _shot = wrong_kill_weapon == "revolver"
+        _slot = game_state.current_slot
 
         def _pick(order):
             for c in order:
@@ -1193,10 +1257,19 @@ label knife_coverup:
         def _show_at(cid, pos):
             renpy.show(cid + " neutral", at_list=[pos])
 
-    scene bg parlor_night with fade
+    scene expression get_scene_bg("parlor", _slot, _at_night) with fade
     play sound "audio/clock_tick.wav"
 
-    "Lamps come on along the corridor, one after another, in the order of who sleeps lightest."
+    # How the house finds out. A revolver is heard by everybody in the valley; a
+    # boning knife in a dark hallway is heard by nobody.
+    if _shot:
+        "The report goes out flat across the valley and comes back off the far slope, and for a second the whole house is listening."
+        "They come down in the order they come down, and nobody has to be woken, because everybody is already awake and pretending not to be."
+    elif _at_night:
+        "Lamps come on along the corridor, one after another, in the order of who sleeps lightest."
+    else:
+        "The corridor fills up faster than a house that size should fill. Nobody has to be woken. Everybody was already in the way."
+
     "They find you sitting on the floor beside it with your hands open on your knees, because you cannot think what else to do with your hands."
 
     $ _show_at(_lead, sprite_left)
@@ -1211,7 +1284,10 @@ label knife_coverup:
 
     lead_char "Certain of what? Say the whole sentence. Say the whole sentence out loud."
 
-    "You open your mouth to say it — that tonight you are going to be killed, that you have already been killed, that you were only trying to get there first —"
+    if _at_night:
+        "You open your mouth to say it — that tonight you are going to be killed, that you have already been killed, that you were only trying to get there first —"
+    else:
+        "You open your mouth to say it — that you are going to be killed before this day is out, that you have already been killed, that you were only trying to get there first —"
     play sound "audio/strain_burn.wav"
     with death_shake
     "— and the hand closes on the inside of your throat again, patient as ever, and nothing comes out but air."
@@ -1229,7 +1305,10 @@ label knife_coverup:
     with dissolve
     medic_char "Everyone stop talking."
     medic_char "He has a head injury, a pulse I can hear from here, and no reliable idea what day it is. That is my statement and I will put my name to it."
-    medic_char "If the constabulary come up that road tonight, they take him. And he does not come back from where they take him."
+    if _at_night:
+        medic_char "If the constabulary come up that road tonight, they take him. And he does not come back from where they take him."
+    else:
+        medic_char "If the constabulary come up that road today, they take him. And he does not come back from where they take him."
     $ renpy.hide(_medic)
     with dissolve
 
@@ -1245,24 +1324,44 @@ label knife_coverup:
     $ renpy.hide(_steady)
     with dissolve
 
-    scene bg gate_night with fade
+    scene expression get_scene_bg("gate", _slot, _at_night) with fade
     play sound "audio/thunder.wav"
-    "It takes until nearly three. The rain helps, in the way that rain helps."
-    "Somebody holds the lamp. Somebody else does most of the digging. You are not permitted to do any of it, which is somehow the worst thing that has happened all night."
+
+    # How long the dig takes, and what it costs, both read off the hour.
+    if _at_night:
+        "It takes until nearly three. The rain helps, in the way that rain helps."
+        "Somebody holds the lamp. Somebody else does most of the digging. You are not permitted to do any of it, which is somehow the worst thing that has happened all night."
+    elif _slot == "evening":
+        "It takes until the light goes entirely. The rain helps, in the way that rain helps."
+        "Somebody holds the lamp. Somebody else does most of the digging. You are not permitted to do any of it, which is somehow the worst thing that has happened today."
+    else:
+        "It takes the rest of the afternoon. There is no lamp needed and no rain to hide in, and every hour of it is spent in full daylight in front of the house."
+        "Somebody else does all of the digging. You are not permitted to help, which is somehow the worst thing that has happened today."
 
     $ _show_at(_taker, sprite_standing)
     with dissolve
     taker_char "Your coat, sir. And the — and the thing."
     "A hand held out, palm up, that will not look at what it is asking for."
-    taker_char "You're not to have anything sharp. That's what's been decided. I'm sorry."
+    if _shot:
+        taker_char "You're not to have the gun. That's what's been decided. I'm sorry."
+    else:
+        taker_char "You're not to have anything sharp. That's what's been decided. I'm sorry."
     adrian "You're right to take it."
     taker_char "I wasn't right about anything. I only did as I was told, same as always."
     $ renpy.hide(_taker)
     with dissolve
 
-    "The knife goes into the hole with the rest of it. The soil goes back. Someone tamps it flat with the back of a spade and then stands there a long moment afterwards, hat in hand, saying nothing at all."
+    # The weapon goes into the hole with the body: it is the evidence, and the
+    # evidence is four feet under the east wall.
+    if _shot:
+        "The revolver goes into the hole with the rest of it, and the soil goes back over it. Someone tamps it flat with the back of a spade and then stands there a long moment afterwards, hat in hand, saying nothing at all."
+    else:
+        "The knife goes into the hole with the rest of it. The soil goes back. Someone tamps it flat with the back of a spade and then stands there a long moment afterwards, hat in hand, saying nothing at all."
 
-    thought "Four people came out here tonight and buried a body for me, and three of them have never hurt anyone in their lives."
+    if _at_night:
+        thought "Four people came out here tonight and buried a body for me, and three of them have never hurt anyone in their lives."
+    else:
+        thought "Four people came out here in daylight and buried a body for me, and three of them have never hurt anyone in their lives."
     thought "And one of them helped me dig, and smiled about it where the lamp could not reach."
 
     pause 0.8
@@ -1291,15 +1390,33 @@ label after_hours:
         # Shared guilt opens people up in a way nothing else in this house does.
         for c in survivors:
             game_state.trust[c] = min(TRUST_MAX, game_state.trust.get(c, 0) + 1)
-            pres_fact = "presence:seen:" + c + ":parlor:evening:" + str(game_state.current_day)
+            # Keyed by the real slot: this round can now start in the afternoon,
+            # and a fact filed under "evening" would be a false one.
+            pres_fact = "presence:seen:" + c + ":parlor:" + game_state.current_slot + ":" + str(game_state.current_day)
             game_state.known_facts.add(pres_fact)
 
-    scene bg parlor_night with fade
-    "Afterwards, nobody goes to bed."
-    "They sit in the parlor with the lamps turned down and their boots still wet, and the house is more awake at four in the morning than it has been all week."
+    scene expression get_scene_bg("parlor", game_state.current_slot, night_sequence) with fade
 
-    thought "They are frightened, and they are in it with me now, and frightened people who are already in it will say things they would never say at breakfast."
-    thought "I have until whoever it is decides the night is not finished. Use it."
+    # The round does not advance the clock. A midnight burial is a small-hours
+    # scene; a revolver fired at four in the afternoon stays one.
+    if night_sequence:
+        "Afterwards, nobody goes to bed."
+        "They sit in the parlor with the lamps turned down and their boots still wet, and the house is more awake at four in the morning than it has been all week."
+
+        thought "They are frightened, and they are in it with me now, and frightened people who are already in it will say things they would never say at breakfast."
+        thought "I have until whoever it is decides the night is not finished. Use it."
+    elif game_state.current_slot == "evening":
+        "Afterwards nobody goes up. Nobody suggests it."
+        "They sit in the parlor with the lamps turned down and their sleeves still stiff, and the house is more awake at the end of this day than it has been all week."
+
+        thought "They are frightened, and they are in it with me now, and frightened people who are already in it will say things they would never say at breakfast."
+        thought "I have until whoever it is decides this evening is not finished. Use it."
+    else:
+        "Afterwards nobody leaves the room, and nobody can say why not."
+        "They sit in the parlor in broad daylight with the curtains open, and the house is more awake in the middle of the afternoon than it has been all week."
+
+        thought "They are frightened, and they are in it with me now, and frightened people who are already in it will say things they would never say at breakfast."
+        thought "I have until whoever it is decides this is not finished. Use it."
 
     show screen hud
     jump location_action_loop
@@ -1358,6 +1475,8 @@ label night_death:
         drawer_examined = False
         knife_found = False
         knife_taken_back = False
+        night_sequence = False
+        wrong_kill_weapon = ""
         after_hours_active = False
 
     # ─── Awakening ───────────────────────────────────────────────────────────
