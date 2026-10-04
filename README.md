@@ -34,8 +34,10 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
 
 4. **Curated Audio (`game/engine/audio_manifest.py`)**
    - 31 hand-picked tracks wired across 14 scenes: title, day/night beds, kitchen, storm, burial, both endings.
-   - **Silence-triggered atmosphere**: six interchangeable ambient tracks play at random when the house has been quiet for 12 seconds, so the gaps between lines are never quite empty.
+   - **Silence-triggered atmosphere**: six interchangeable ambient tracks play at random whenever nothing is audible, so the gaps between lines are never quite empty.
+   - Silence is measured by polling the audio channels, not by a timestamp — the 29 original `play sound` calls and the voice blip never pass through an audio helper, so only the channels themselves know what is playing.
    - Built with `tools/extract_audio.py`, which extracts the source archives to a gitignored `audio_inbox/` and builds a contact sheet for auditioning.
+   - The test suite runs `renpy.sh . lint` against the project when an SDK is present. Three build-breaking errors in this project's history passed every other test, because nothing had handed the scripts to the real parser.
 
 ---
 

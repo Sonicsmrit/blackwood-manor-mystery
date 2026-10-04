@@ -707,9 +707,9 @@ Scene map:
 
 | Scene | Key |
 |---|---|
-| main menu | `title` |
+| main menu | `title`, alternating with `title_alt` once per launch |
 | day1_intro, day1_evening_bond | `atmos_low`, `evening_final` |
-| day_slot_start | `kitchen` in the kitchen, `night` at night, else `atmos_general` |
+| day_slot_start | `kitchen` in the kitchen (`kitchen_alt` from loop 2 on), `night` at night, else `atmos_general` |
 | evening → evening slot | `evening_final` on Day 2, else `atmos_general` |
 | day1_night_transition | `night` + looping `storm_wind` |
 | day2_morning_transition, loop reset | `clock` |
@@ -722,9 +722,27 @@ Scene map:
 
 The eight original synthesized effects stay in place; nothing in the curated set is unambiguously better for a UI click.
 
-**Silence pool.** Six interchangeable atmospheric tracks play at random when the house has been quiet for `IDLE_AMBIENCE_AFTER` seconds, with `AMBIENCE_COOLDOWN` between them. Driven by a `timer` on the `ambience_idle_watcher` overlay screen rather than the HUD, because the HUD is hidden during cutscenes and conversation — where the silence lands. It uses `time.monotonic()`; the SDK's own time accessor is absent in this build, which is what `traceback.txt` records. Both constants and all volumes are tunable at the top of the manifest.
+**Silence pool.** Six interchangeable atmospheric tracks play at random when the house is quiet, with `AMBIENCE_COOLDOWN` between them. Driven by a `timer` on the `ambience_idle_watcher` overlay screen rather than the HUD, because the HUD is hidden during cutscenes and conversation — where the silence lands. Both constants and all volumes are tunable at the top of the manifest.
+
+Silence is **polled, not stamped**. `audio_is_silent()` asks `renpy.music.get_playing()` about the `sfx`, `voice_sfx`, `stinger` and `ambience` channels, because the 29 original `play sound` statements are scattered through the labels and the voice blip is triggered from screen code — neither passes through an audio helper, so no stamp would ever see them. `music` is excluded from that list on purpose: a bed is meant to be playing whenever the player is in a scene, so counting it would mean the pool never fires at all. The ambience channel is *not* excluded: `storm_wind` is 26 seconds of weather the scene asked for, and since the pool shares its channel, treating a loop as "background, therefore silence" would let the next tick cut the storm dead. The `time.monotonic()` clock is only used for the cooldown; the SDK's own time accessor is absent in this build, which is what `traceback.txt` records.
+
+The watcher's state lives in a dict rather than two module globals. Assigning to a bare global from inside a function makes it local, so the first version of these helpers raised `UnboundLocalError` on the very first `set_music()` call — a failure invisible to lint, to the file-existence tests, and to anything short of running the game.
+
+**Piano accent.** `piano` is the one curated hit with no scene: a 4s phrase meant to surface anywhere. It rides the `stinger` channel at `PIANO_ACCENT_VOLUME` relative volume, so it layers over a bed instead of replacing it, and is rolled once per idle tick against `PIANO_ACCENT_CHANCE` — a per-second probability of 1/250, putting the expected gap between phrases at a bit over four minutes. Because it lands on an audible channel, a winning roll makes the house non-silent and the pool stands down for that tick; two layers at once would read as a cue rather than as the house settling.
 
 The source tracks were not cut for looping, so a bed that outlasts its scene may seam where it repeats.
+
+### 14.6 Testing the parser, not just the intent
+
+Every test above runs outside Ren'Py, which is the point — and also the trap. Three separate build-breaking errors have passed this suite: a dedented `return` (`2cbbf11`), 39 bare `set_music(...)` calls sitting in Ren'Py statement position instead of `$ set_music(...)` (`d11bab3`), and the `UnboundLocalError` above. None was visible to a test that only checked wiring.
+
+So the suite now ends with three that do:
+
+- the audio helpers are sliced out of `script.rpy` and executed against a stub Ren'Py, so "does this raise when called" and "does silence mean what it claims" are real assertions rather than grep hits;
+- `renpy.sh . lint` runs against the project, and any `File "game/....rpy", line N:` in its output fails the test. It skips when no SDK is found, so a bare checkout still runs;
+- a narrow structural check that no audio call sits in a label without its `$`, tracking `python:` block state so the legal in-block form is not flagged.
+
+Every one of those guards has been mutation-tested: reintroduce the original bug, confirm the right test fails.
 
 ---
 

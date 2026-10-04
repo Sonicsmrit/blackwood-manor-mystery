@@ -69,9 +69,8 @@ AMBIENCE = {
 # ── The silence pool.
 #
 # These six are near-identical in role: atmospheric texture, no fixed home. They
-# are played at random when the house has been quiet for IDLE_AMBIENCE_AFTER
-# seconds, so the silence between lines is never quite empty. They are never
-# pinned to a scene.
+# are played at random whenever nothing else is audible, so the silence between
+# lines is never quite empty. They are never pinned to a scene.
 AMBIENT_POOL = [
     "audio/ambience/atm_01.ogg",
     "audio/ambience/atm_02.ogg",
@@ -103,12 +102,23 @@ VOLUME_MUSIC = 0.55
 VOLUME_AMBIENCE = 0.35
 VOLUME_STINGER = 1.0
 
-# How long the house must be quiet before the pool gets a turn, and how long
-# after a pool track before another is allowed. The voice blip channel plays on
-# every line and loops for 1.8s, so silence is rare during conversation -- the
-# pool lands in the gaps and on the non-conversation screens instead.
-IDLE_AMBIENCE_AFTER = 12.0
+# How long after a pool track before another is allowed.
+#
+# This is the pool's only timing constant. There is no "quiet for N seconds"
+# threshold, because silence is measured directly -- audio_is_silent() polls the
+# channels -- so the moment the house goes quiet the pool is eligible, and this
+# value only stops it repeating. The voice blip plays on every dialogue line and
+# loops for 1.8s, so quiet is rare mid-conversation anyway: the pool lands in the
+# gaps and on the non-conversation screens.
 AMBIENCE_COOLDOWN = 45.0
+
+# `piano` is the one curated hit that is not tied to a scene: a 4s phrase meant
+# to surface anywhere, at any time. It rides the stinger channel at reduced
+# relative volume so it can never cut a bed, and it is rare -- rolled once per
+# idle tick against a 1s timer, so the chance is per second and 1/250 puts the
+# expected gap between phrases at a bit over four minutes.
+PIANO_ACCENT_CHANCE = 0.004
+PIANO_ACCENT_VOLUME = 0.4
 
 # Crossfades, in seconds.
 FADE_SHORT = 1.0
