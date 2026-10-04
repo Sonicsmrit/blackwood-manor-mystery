@@ -15,16 +15,19 @@ define CHOICE_ARM_DELAY = 0.18
 init python:
     import time
 
-    def character_has_conflict(char_id, conflicts, facts):
-        facts_by_id = {}
-        for f in facts:
-            facts_by_id[f.id] = f
-        for pair in conflicts:
-            f1 = facts_by_id.get(pair[0], None)
-            f2 = facts_by_id.get(pair[1], None)
-            if (f1 and f1.char == char_id) or (f2 and f2.char == char_id):
-                return True
-        return False
+    # There is deliberately no conflict/verdict helper here any more.
+    #
+    # The notebook used to paint a character card red and stamp it
+    # "CONTRADICTS THEMSELF" whenever find_conflicts() paired their routine
+    # claim with an observed absence. That flag was worthless: the generator
+    # gives *every* character exactly one deviation slot, killer and innocent
+    # alike (validator V3 requires it, one per innocent plus their decoy
+    # errand). So the red could light up on all five people at once, narrowed
+    # the field not at all, and called an innocent a liar for running an errand.
+    #
+    # What the player gets instead is the raw material -- the claim on their
+    # card, and the empty rooms on the Timeline tab -- and the player draws the
+    # conclusion. See the Timeline tab, which renders presence:absence records.
 
     def char_tint(char_id):
         """Speech colour for a character, for tinting names in menus and lists."""
@@ -687,7 +690,6 @@ screen notebook():
 
 ## Notebook Tab: People
 screen notebook_characters_tab():
-    $ conflicts_list = find_conflicts(game_state.known_facts, all_facts)
     viewport:
         scrollbars "vertical"
         mousewheel True
@@ -700,11 +702,11 @@ screen notebook_characters_tab():
                 $ cname = get_character_display_name(char)
                 $ ctrust = game_state.trust.get(char, 0)
                 $ char_facts = [f for f in all_facts if f.char == char and f.id in game_state.known_facts]
-                $ has_conflict = character_has_conflict(char, conflicts_list, all_facts)
 
                 frame:
                     xfill True
-                    background (GOTH_PANEL_BLOOD if has_conflict else GOTH_LEAF)
+                    # Uniform. No card is coloured by whether it "contradicts".
+                    background GOTH_LEAF
                     xpadding 26
                     ypadding 20
 
@@ -721,18 +723,6 @@ screen notebook_characters_tab():
                                 size 25
                                 color char_tint(char)
                                 kerning 0.8
-
-                            if has_conflict:
-                                frame:
-                                    background Solid(GOTH_BLOOD)
-                                    xpadding 11
-                                    ypadding 4
-                                    yalign 0.5
-                                    text "CONTRADICTS THEMSELF":
-                                        font GOTH_FONT_BODY_B
-                                        size 14
-                                        color GOTH_CREAM
-                                        kerning 1.4
 
                             vbox:
                                 xalign 1.0
@@ -780,10 +770,19 @@ screen notebook_timeline_tab():
             spacing 14
             xfill True
 
-            text "Where you actually saw them — not where they claim to be.":
+            text "Where you saw them, and where they said they would be.":
                 font GOTH_FONT_BODY_I
                 size 19
                 color GOTH_TEXT_MUTE
+
+            # One pass over known_facts, then O(1) lookups per day/slot.
+            # Re-parsing the whole set inside the slot loop meant six full
+            # sweeps every time the screen redrew.
+            $ notebook_presence = {}
+            for pres_fid in game_state.known_facts:
+                $ pres_parts = parse_presence_fact(pres_fid)
+                if pres_parts:
+                    $ notebook_presence[pres_parts[3] + ":" + str(pres_parts[4]) + ":" + pres_parts[0] + ":" + pres_parts[1]] = pres_parts[2]
 
             for d in [1, 2]:
                 frame:
@@ -800,11 +799,15 @@ screen notebook_timeline_tab():
                             kerning 2.0
 
                         for s in SLOTS:
-                            $ slot_obs = []
+                            $ slot_seen = []
+                            $ slot_absent = []
                             for c in CHARACTERS:
-                                $ pres_key = "presence:seen:" + c + ":" + run_state.positions[c][str(d)][s] + ":" + s + ":" + str(d)
-                                if pres_key in game_state.known_facts:
-                                    $ slot_obs.append((c, get_location_display_name(run_state.positions[c][str(d)][s])))
+                                $ k_seen = s + ":" + str(d) + ":seen:" + c
+                                $ k_absent = s + ":" + str(d) + ":absence:" + c
+                                if k_seen in notebook_presence:
+                                    $ slot_seen.append((c, get_location_display_name(notebook_presence[k_seen])))
+                                if k_absent in notebook_presence:
+                                    $ slot_absent.append((c, notebook_presence[k_absent]))
                             hbox:
                                 spacing 16
                                 text "[s.capitalize()]":
@@ -812,10 +815,10 @@ screen notebook_timeline_tab():
                                     size 19
                                     color GOTH_TEXT_MUTE
                                     xsize 150
-                                if slot_obs:
+                                if slot_seen or slot_absent:
                                     vbox:
                                         spacing 3
-                                        for c, where in slot_obs:
+                                        for c, where in slot_seen:
                                             hbox:
                                                 spacing 8
                                                 text "[get_character_display_name(c)]":
@@ -826,6 +829,15 @@ screen notebook_timeline_tab():
                                                     font GOTH_FONT_BODY
                                                     size 19
                                                     color GOTH_TEXT_SOFT
+                                        # An empty room, in words. This is the
+                                        # evidence the red verdict used to
+                                        # summarise for the player without ever
+                                        # showing them.
+                                        for c, where in slot_absent:
+                                            text "[presence_absence_text(c, where, s, d)]":
+                                                font GOTH_FONT_BODY
+                                                size 19
+                                                color GOTH_TEXT_SOFT
                                 else:
                                     text "you were not there":
                                         font GOTH_FONT_BODY_I
@@ -848,30 +860,20 @@ screen notebook_findings_tab():
                 for item in found_items:
                     frame:
                         xfill True
-                        background (GOTH_PANEL_PLUM if item.exclusive else GOTH_LEAF)
+                        # Uniform. Nothing is tinted or badged for being
+                        # "exclusive": that flag marks the killer's own find, so
+                        # colouring by it is a verdict wearing a disguise. The
+                        # card text already describes the object plainly.
+                        background GOTH_LEAF
                         xpadding 24
                         ypadding 17
                         vbox:
                             spacing 7
-                            hbox:
-                                spacing 14
-                                yalign 0.5
-                                text "[item.id]":
-                                    font GOTH_FONT_DISPLAY_B
-                                    size 21
-                                    color (GOTH_GOLD if item.exclusive else GOTH_TEXT_SOFT)
-                                    kerning 0.8
-                                if item.exclusive:
-                                    frame:
-                                        background Solid(GOTH_BLOOD)
-                                        xpadding 11
-                                        ypadding 4
-                                        yalign 0.5
-                                        text "DAMNING":
-                                            font GOTH_FONT_BODY_B
-                                            size 14
-                                            color GOTH_CREAM
-                                            kerning 1.6
+                            text "[evidence_label(item.kind)]":
+                                font GOTH_FONT_DISPLAY_B
+                                size 21
+                                color GOTH_TEXT_MUTE
+                                kerning 0.8
                             text "[item.text]":
                                 font GOTH_FONT_BODY
                                 size 20

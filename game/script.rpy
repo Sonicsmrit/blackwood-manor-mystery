@@ -20,10 +20,11 @@ init python:
     import time
     from engine.generator import generate_run
     from engine.facts import build_all_facts, get_available_facts, get_search_findings
-    from engine.conflicts import find_conflicts
     from engine.dialogue import generate_intents, apply_intent
     from engine.solver import solve
-    from bridge import get_character_display_name, get_location_display_name
+    from bridge import (get_character_display_name, get_location_display_name,
+                        parse_presence_fact, presence_absence_text,
+                        presence_absence_text_for, evidence_label)
     from llm import generate_dialogue_fallback, get_fallback_data, generate_dialogue
 
     # Register voice blip sound channel

@@ -209,13 +209,49 @@ Fragment display: black screen, 2 seconds, one line in italics ("You hear a slow
 
 ### 5.8 Contradiction engine
 
-`conflicts(facts_known) -> list[(factA, factB)]`. A pair lights up in the Notebook once both facts are known:
+`find_conflicts(known_fact_ids, all_facts) -> list[(factA, factB)]` still models which pairs
+of known facts cannot both be true:
 
 - routine claim vs observed absence
 - crash slip vs `world:official_report`
-- any statement vs a finding that contradicts it (for example "I never go upstairs at night" vs a finding of their belongings upstairs)
 
-The Notebook shows a red marker per conflict per character. It shows no verdict, no percentages, and never says who the killer is.
+**It is not surfaced in the notebook, and must not be.** The notebook used to paint a
+character card red and stamp it "CONTRADICTS THEMSELF" off these pairs, and that flag was
+worthless: the generator gives *every* character exactly one deviation slot, killer and
+innocent alike (`validator.py` V3 requires one per innocent, tied to their decoy secret). So
+one empty room per person, for all five, and the red could fire on the entire cast at once.
+It narrowed the field not at all and called an innocent a liar for running an errand.
+
+`find_conflicts` remains engine API only. `test_17` asserts no `.rpy` screen calls it, so the
+verdict cannot return through a new import.
+
+A deviation is **not** evidence and is never recorded as a fact. The `presence:deviation:`
+branch that used to sit in `conflicts.py` was dead — nothing ever wrote one — and it has been
+removed rather than left to imply a deviation is something the notebook could catch.
+
+#### 5.8.1 Showing evidence instead
+
+Absence records are bare ID strings in `known_facts` with no `Fact` object behind them, since
+`build_all_facts` emits only `world`/`claim`/`finding`/`fragment`. They therefore have no
+`.text` and were previously rendered nowhere — the notebook displayed the verdict while
+withholding the evidence. `bridge.py` now supplies the words:
+
+| Helper | Purpose |
+|---|---|
+| `parse_presence_fact(id)` | `presence:{absence\|seen}:{char}:{loc}:{slot}:{day}` → parts, `None` if unparseable |
+| `presence_absence_text(char, loc, slot, day)` | "The Study was empty. Elise said she would be there." |
+| `presence_absence_text_for(id)` | same, keyed by fact ID |
+| `evidence_label(kind)` | neutral heading for an Evidence card, keyed off `kind` alone |
+
+The absence sentence reports only what Adrian walked into. It must not claim anyone lied: a
+single empty room proves nothing, because everyone deviates once. The claim being measured
+against is on that person's card in the People tab, and reading one against the other is the
+player's job.
+
+The Timeline tab renders absences as that sentence, alongside sightings, keyed off
+`known_facts` rather than off the generator's position map. The old lookup reconstructed an
+expected sighting key from `run_state.positions`, so a room the player entered that turned
+out empty could never appear at all — the exact case the evidence exists to show.
 
 ---
 
@@ -510,12 +546,18 @@ Use brute force over `(slot, location, action)`. State space is tiny.
 
 Tabs: **Characters**, **Timeline**, **Findings**, **Deaths**.
 
-- **Characters**: one card per character with portrait, trust note (current loop), all claims known, and conflict markers.
-- **Timeline**: Day 1 and Day 2 slots as rows, locations as columns, with who was seen where (presence), absences marked.
+- **Characters**: one card per character, their trust note (current loop), and every claim you have heard from them. Uniform styling — no card is coloured or badged.
+- **Timeline**: Day 1 and Day 2 slots as rows. Each slot lists who you saw and where, plus any room you entered that turned out empty (`presence_absence_text`).
 - **Findings**: item list with icon (use `PROP*` images, assigned after the asset audit).
 - **Deaths**: one entry per death showing the fragment and the loop.
 
-Rules: never show a suspicion percentage or a ranking. Conflicts are the only automatic judgment.
+Rules: never show a suspicion percentage, a ranking, or a per-character marker of guilt. The
+notebook supplies claims and observations; the player draws the conclusion.
+
+**Never render a raw `Fact.id` or `Fact.text_key`.** The id is `finding:{char}:...` and the
+killer's own finding carries `text_key` `finding.killer.obsession` — either one names the
+murderer outright, even in a muted colour. Evidence cards are headed by `evidence_label(kind)`
+("A document", "Something left behind") and tinted uniformly. `test_17` guards all of this.
 
 ---
 
@@ -701,6 +743,6 @@ Cut list, in order, if time runs short: notebook Timeline tab, location tints, D
 - Fallback mode plays a complete run: loops, deaths, fragments, shot, ending.
 - Live mode plays the same run with LLM-written lines and choices.
 - 10,000-seed validation passes.
-- Notebook shows contradictions automatically.
+- Notebook presents claims and observations without grading them; the player identifies the killer.
 - The killer and agenda differ across runs, and the loop count to solve is 1 to 3 for a careful player.
 - Demo video recorded.

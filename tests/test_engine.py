@@ -530,5 +530,144 @@ class TestGameEngine(unittest.TestCase):
                                    "found no returns to check at all")
 
 
+    def test_16_absence_records_are_visible_to_the_player(self):
+        """Test 16: An observed absence must be renderable, in words.
+
+        Absence facts are stored in known_facts as bare ID strings.
+        build_all_facts emits only world/claim/finding/fragment, so there is no
+        Fact object and no .text behind them -- which is exactly why the notebook
+        could paint a red "CONTRADICTS THEMSELF" verdict while the evidence
+        behind it stayed invisible. These helpers are what put the observation
+        on the Timeline tab instead.
+        """
+        from bridge import (parse_presence_fact, presence_absence_text,
+                            presence_absence_text_for)
+        from engine.constants import LOCATIONS, SLOTS
+
+        # Every shape the game can actually write must parse.
+        for char in CHARACTERS:
+            for loc in LOCATIONS:
+                for slot in SLOTS:
+                    for day in (1, 2):
+                        fid = f"presence:absence:{char}:{loc}:{slot}:{day}"
+                        parsed = parse_presence_fact(fid)
+                        self.assertIsNotNone(parsed, f"failed to parse {fid}")
+                        self.assertEqual(parsed[0], "absence")
+                        self.assertEqual(parsed[1], char)
+                        self.assertEqual(parsed[2], loc)
+                        self.assertEqual(parsed[3], slot)
+                        self.assertEqual(parsed[4], day)
+
+                        line = presence_absence_text_for(fid)
+                        self.assertTrue(line and line.strip())
+                        # It must name the room and the person, or it is not
+                        # evidence the player can reason from.
+                        from bridge import (get_character_display_name,
+                                            get_location_display_name)
+                        self.assertIn(get_character_display_name(char), line)
+                        self.assertIn(get_location_display_name(loc), line)
+
+        # Sightings use the same ID shape with a different kind.
+        seen = parse_presence_fact("presence:seen:elise:study:morning:1")
+        self.assertEqual(seen[0], "seen")
+
+        # And it must not claim they lied. A deviation is the fairness structure,
+        # not evidence, so the sentence may only report what Adrian saw.
+        line = presence_absence_text_for("presence:absence:vance:study:afternoon:2")
+        for word in ["lie", "lying", "lied", "liar", "contradict", "guilt", "knew"]:
+            self.assertNotIn(
+                word, line.lower(),
+                f"absence text asserts more than it observed: {word!r} in {line!r}")
+
+        # Junk must not raise.
+        for bad in ["", "nonsense", "presence:", "presence:absence:elise",
+                    "presence:absence:elise:study:morning",
+                    "presence:absence:elise:study:morning:2:extra",
+                    "presence:absence:elise:study:morning:x", None, 7]:
+            if bad is None or isinstance(bad, int):
+                self.assertIsNone(parse_presence_fact(bad))
+            else:
+                self.assertIsNone(
+                    parse_presence_fact(bad), f"should not have parsed {bad!r}")
+
+    def test_17_notebook_renders_no_verdict(self):
+        """Test 17: The notebook must not grade the evidence or the people.
+
+        Guards the removal of the red "CONTRADICTS THEMSELF" badge, the "DAMNING"
+        badge, and the raw Fact.id heading that named the character outright.
+        Also asserts no screen calls find_conflicts, so the verdict cannot come
+        back through a new import.
+        """
+        import glob
+        import re
+
+        banned_strings = ["CONTRADICTS THEMSELF", "DAMNING", "character_has_conflict"]
+        banned_calls = ["find_conflicts"]
+
+        # Nothing anywhere in the .rpy layer may reintroduce a verdict.
+        # Comment lines are skipped: a comment explaining what was removed is
+        # documentation, not something the player can ever see rendered, and
+        # banning the words outright would forbid recording why they went.
+        for path in sorted(glob.glob(os.path.join(base_dir, "game", "*.rpy"))):
+            with open(path, encoding="utf-8") as fh:
+                raw = fh.read()
+            code = "\n".join(
+                l for l in raw.split("\n") if not l.lstrip().startswith("#"))
+            for banned in banned_strings:
+                self.assertNotIn(
+                    banned, code,
+                    f"{os.path.basename(path)} still renders {banned!r}")
+            for call in banned_calls:
+                for m in re.finditer(re.escape(call) + r"\s*\(", code):
+                    self.fail(
+                        f"{os.path.basename(path)} calls {call}() -- the "
+                        f"notebook must not compute verdicts")
+
+        # The Evidence tab must not render a raw id or text_key: the killer's
+        # id is finding:{killer}:... and its text_key is the literal string
+        # "finding.killer.obsession". Either one names the murderer.
+        with open(os.path.join(base_dir, "game", "custom_screens.rpy"),
+                  encoding="utf-8") as fh:
+            screens = fh.read()
+        self.assertNotIn("[item.id]", screens)
+        self.assertNotIn("item.text_key", screens)
+        self.assertNotIn("item.exclusive", screens)
+
+        # ...and the neutral label it uses instead must exist and stay neutral.
+        from bridge import evidence_label
+        self.assertEqual(evidence_label("world"), "A document")
+        self.assertEqual(evidence_label("finding"), "Something left behind")
+        self.assertEqual(evidence_label("claim"), "Something you noted")
+        for kind in ["world", "finding", "claim", "fragment", "presence", None]:
+            label = evidence_label(kind).lower()
+            for name in CHARACTERS:
+                from bridge import get_character_display_name
+                self.assertNotIn(
+                    get_character_display_name(name).lower(), label,
+                    f"evidence_label({kind!r}) leaks a character name")
+            for word in ["kill", "murder", "guilt", "damning", "lie", "suspect"]:
+                self.assertNotIn(word, label,
+                                 f"evidence_label({kind!r}) grades the evidence: {word!r}")
+
+    def test_18_absence_text_is_shown_on_the_timeline(self):
+        """Test 18: The Timeline tab must actually render the absence text.
+
+        test_16 proves the helper produces a sentence; this proves the screen
+        asks for it. Without this the evidence would be computable but invisible,
+        which is the bug being fixed.
+        """
+        with open(os.path.join(base_dir, "game", "custom_screens.rpy"),
+                  encoding="utf-8") as fh:
+            screens = fh.read()
+
+        self.assertIn("presence_absence_text(", screens)
+        self.assertIn("parse_presence_fact(", screens)
+
+        # The old sighting-only lookup reconstructed an expected key from the
+        # generator's position map, so a room you visited that turned out empty
+        # could never render. The new index must be driven by known_facts.
+        self.assertNotIn("run_state.positions[c][str(d)][s]", screens)
+
+
 if __name__ == "__main__":
     unittest.main()

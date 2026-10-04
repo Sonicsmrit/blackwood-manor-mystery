@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.join(base_dir, "game"))
 from engine.constants import SLOTS, ACTIONS_PER_SLOT, MAX_STRAIN
 from engine.state import new_game_state, reset_loop
 from engine.generator import generate_run
-from engine.conflicts import find_conflicts
 from engine.dialogue import generate_intents, apply_intent
 from engine.facts import get_search_findings
 from engine.solver import solve

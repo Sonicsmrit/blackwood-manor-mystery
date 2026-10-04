@@ -19,7 +19,7 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
 1. **Deterministic Fairness Engine (`game/engine/`)**
    - **Pure Python with Zero Engine Dependencies**: Fully testable outside Ren'Py via standard unit tests.
    - **Automated Solvability & Fairness Validator**: Generates provably solvable mystery runs within 1 to 2 loops.
-   - **Contradiction Engine (`conflicts.py`)**: Automatically highlights active contradictions in your notebook without giving away answers.
+   - **Presence & Contradiction Tracking (`conflicts.py`, `bridge.py`)**: Records who you saw and which rooms turned out empty, and surfaces them as plain observations. The notebook never grades a character — you weigh the claims against what you saw and name the killer yourself.
    - **Return by Death State Persistence (`state.py`)**: Keeps notebook entries, discovered facts, and death fragments while cleanly resetting loop day, actions, and trust.
 
 2. **AI Director & Dialogue Engine (`game/llm.py`)**
