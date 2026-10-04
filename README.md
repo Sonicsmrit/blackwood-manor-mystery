@@ -32,6 +32,11 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
    - 4-tab Interactive Notebook (Characters, Timeline, Findings, Deaths).
    - Atmospheric 1080p backgrounds and character expressions.
 
+4. **Curated Audio (`game/engine/audio_manifest.py`)**
+   - 31 hand-picked tracks wired across 14 scenes: title, day/night beds, kitchen, storm, burial, both endings.
+   - **Silence-triggered atmosphere**: six interchangeable ambient tracks play at random when the house has been quiet for 12 seconds, so the gaps between lines are never quite empty.
+   - Built with `tools/extract_audio.py`, which extracts the source archives to a gitignored `audio_inbox/` and builds a contact sheet for auditioning.
+
 ---
 
 ## 🚀 How to Run

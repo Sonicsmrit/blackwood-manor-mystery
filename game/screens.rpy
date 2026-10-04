@@ -256,10 +256,19 @@ screen quick_menu():
             textbutton _("Prefs") action ShowMenu('preferences')
 
 
+## The idle-ambience watcher. Lives here rather than on the HUD because the HUD
+## is hidden during conversation, cutscenes and the endings -- exactly where a
+## silence-triggered atmosphere still needs to fire.
+screen ambience_idle_watcher():
+    zorder -100
+    timer 1.0 action Function(idle_ambience_tick)
+
+
 ## This code ensures that the quick_menu screen is displayed in-game, whenever
 ## the player has not explicitly hidden the interface.
 init python:
     config.overlay_screens.append("quick_menu")
+    config.overlay_screens.append("ambience_idle_watcher")
 
 default quick_menu = True
 

@@ -26,9 +26,22 @@ init python:
                         parse_presence_fact, presence_absence_text,
                         presence_absence_text_for, evidence_label)
     from llm import generate_dialogue_fallback, get_fallback_data, generate_dialogue
+    from engine.audio_manifest import (
+        MUSIC, AMBIENCE, AMBIENT_POOL, AMBIENCE_LOOPING,
+        VOLUME_MUSIC, VOLUME_AMBIENCE, VOLUME_STINGER,
+        IDLE_AMBIENCE_AFTER, AMBIENCE_COOLDOWN,
+        FADE_SHORT, FADE_LONG,
+    )
 
     # Register voice blip sound channel
     renpy.music.register_channel("voice_sfx", mixer="sfx", loop=True)
+
+    # Monotonic stamps driving the idle-ambience watcher. Deliberately not the
+    # SDK's own time accessor, which is absent here and is what the stale
+    # traceback.txt is a record of. Set whenever anything audible plays, so the
+    # silences between lines are measured rather than assumed.
+    _last_audio_at = time.monotonic()
+    _last_pool_at = time.monotonic()
 
     def voice_bleep_callback(event, interact=True, **kwargs):
         if not interact:
@@ -327,6 +340,87 @@ init python:
         tag = expr if expr in char_valid else "neutral"
         renpy.show(char + " " + tag, at_list=[sprite_standing])
 
+    # ── Audio ─────────────────────────────────────────────────────────────────
+    #
+    # Ren'Py routes the default music and sound channels through the "music" and
+    # "sfx" mixers; ambience and stingers need their own channels so volume can be
+    # set independently and so the idle watcher can query what is still playing.
+    renpy.music.register_channel("ambience", mixer="ambience", loop=False)
+    renpy.music.register_channel("stinger", mixer="sfx", loop=False)
+
+    # The voice blip loop already plays on every dialogue line, which means the
+    # music genuinely has to sit under it rather than merely be "quieter".
+    renpy.music.set_volume(channel="music", volume=VOLUME_MUSIC)
+    renpy.music.set_volume(channel="ambience", volume=VOLUME_AMBIENCE)
+    renpy.music.set_volume(channel="stinger", volume=VOLUME_STINGER)
+
+    def set_music(key, loop=True, fade=None):
+        """Play a track by manifest key. Fades in unless told not to."""
+        path = MUSIC.get(key)
+        if not path or not renpy.loadable(path):
+            return
+        renpy.music.play(path, channel="music", loop=loop,
+                         fadein=FADE_LONG if fade is None else fade)
+        _last_audio_at = time.monotonic()
+
+    def stop_music(fade=None):
+        """Silence the music channel. Used at the loop reset and on endings."""
+        renpy.music.stop(channel="music",
+                         fadeout=FADE_LONG if fade is None else fade)
+
+    def set_ambience(key, loop=False, fade=None):
+        """Play a named ambience or stinger. Storm wind loops, nothing else does."""
+        path = AMBIENCE.get(key)
+        if not path or not renpy.loadable(path):
+            return
+        if loop is None:
+            loop = key in AMBIENCE_LOOPING
+        renpy.sound.play(path, channel="ambience", loop=loop,
+                         fadein=FADE_SHORT if fade is None else fade)
+        _last_audio_at = time.monotonic()
+
+    def sfx_sting(key):
+        """One-shot punctuation on its own channel, so it never cuts a bed."""
+        path = AMBIENCE.get(key)
+        if not path or not renpy.loadable(path):
+            return
+        renpy.sound.play(path, channel="stinger")
+        _last_audio_at = time.monotonic()
+
+    def stop_ambience(fade=None):
+        renpy.sound.stop(channel="ambience",
+                         fadeout=FADE_SHORT if fade is None else fade)
+
+    def play_ambience_bed(key):
+        """An atmosphere bed chosen by scene, looped until something stops it."""
+        path = MUSIC.get(key)
+        if not path or not renpy.loadable(path):
+            return
+        renpy.music.play(path, channel="ambience", loop=True, fadein=FADE_LONG)
+        _last_audio_at = time.monotonic()
+
+    def idle_ambience_tick():
+        """Play something from the pool when the house has been quiet.
+
+        Driven by a timer rather than a wall-clock alarm because the voice blip
+        channel plays on every dialogue line and loops for 1.8s: true silence is
+        rare mid-conversation, so the pool lands in the gaps and on the
+        non-conversation screens instead. Volume is low enough to read as
+        texture rather than an event.
+        """
+        now = time.monotonic()
+        if now - _last_audio_at < IDLE_AMBIENCE_AFTER:
+            return
+        if now - _last_pool_at < AMBIENCE_COOLDOWN:
+            return
+        renpy.music.play(
+            renpy.random.choice(AMBIENT_POOL),
+            channel="ambience", loop=False)
+        _last_audio_at = now
+        _last_pool_at = now
+
+    config.main_menu_music = MUSIC["title"]
+
 ################################################################################
 ## Game Initialization & Flow
 ################################################################################
@@ -348,10 +442,12 @@ label start:
 label day1_intro:
     show screen cinema_letterbox
     scene black with fade
+    set_music("atmos_low")
     pause 1.0
 
     # ─── Prologue: the crash, remembered wrong ───────────────────────────────
     play sound "audio/thunder.wav"
+    sfx_sting("static")
     pause 0.5
     "Rain. Not falling so much as thrown, in fistfuls, against curved sheet metal."
     "Headlights find nothing but pine and fog. The road ends three feet past the bumper and begins again only when you are already on it."
@@ -533,6 +629,7 @@ label day1_intro:
     hide screen cinema_letterbox
 
     # Reveal HUD and begin Day 1 investigation
+    set_music("clock")
     "Morning comes thin and grey through diamond panes, and the house is already awake."
     show screen hud
     jump day_slot_start
@@ -555,6 +652,16 @@ label day_slot_start:
     call screen location_picker(current_loc_presence)
     $ chosen_loc = _return
     $ game_state.current_location = chosen_loc
+
+    # Kitchen gets its own bed; it is entered often enough to be worth one.
+    # At night the night bed wins, since the kitchen is somewhere you are
+    # standing in the dark rather than working in it.
+    if night_sequence:
+        set_music("night")
+    elif chosen_loc == "kitchen":
+        set_music("kitchen")
+    else:
+        set_music("atmos_general")
 
     # Set background for the location with time-of-day variant
     $ _bg_tag = get_bg_image_name(chosen_loc, game_state.current_slot)
@@ -745,6 +852,10 @@ label start_conversation:
         npc_char = speaker_char_map[active_speaker]
         convo_turn = 0
         convo_history = []
+        # A quarter of Elise's Day 2 conversations get the short theme under them.
+        if active_speaker == "elise" and game_state.current_day == 2:
+            if renpy.random.random() < 0.25:
+                set_music("elise_day2")
         _preferences.text_cps = 38
 
     # Hide HUD during intimate dialogue
@@ -869,6 +980,7 @@ label advance_slot:
     if after_hours_active:
         $ after_hours_active = False
         hide screen hud
+        set_music("death")
         "The lamps burn down. One by one they stop talking, and the silence that replaces them is not a restful one."
         jump night_death
 
@@ -883,11 +995,17 @@ label advance_slot:
         elif game_state.current_slot == "afternoon":
             game_state.current_slot = "evening"
             next_label = "day_slot_start"
+            sfx_sting("evening_bell")
+else:
+        if game_state.current_day == 1:
+            next_label = "day1_evening_bond"
         else:
-            if game_state.current_day == 1:
-                next_label = "day1_evening_bond"
-            else:
-                next_label = "day2_night_transition"
+            next_label = "day2_night_transition"
+
+    # The last slot of the day gets its own bed. Day 1 evening is still a normal
+    # evening; on Day 2 it is the last one before midnight.
+    if game_state.current_slot == "evening":
+        set_music("evening_final" if (game_state.current_day == 2 and not after_hours_active) else "atmos_general")
 
     jump expression next_label
 
@@ -909,6 +1027,7 @@ label day1_evening_bond:
 
     show screen cinema_letterbox
     scene bg parlor_evening with fade
+    set_music("evening_final")
     play sound "audio/clock_tick.wav"
     pause 0.4
 
@@ -1039,6 +1158,8 @@ label day1_night_transition:
     hide screen hud
     show screen cinema_letterbox
     scene bg parlor_night with fade
+    set_music("night")
+    set_ambience("storm_wind", loop=True)
     play sound "audio/thunder.wav"
     pause 0.5
 
@@ -1050,8 +1171,10 @@ label day1_night_transition:
     "Tomorrow is Day 2. The air in this house feels charged, like iron before lightning strikes."
     "Someone here is watching you. Waiting for their moment."
 
+    sfx_sting("storm_sting")
     pause 1.0
     hide screen cinema_letterbox
+    stop_ambience(fade=2.5)
     jump day2_morning_transition
 
 ################################################################################
@@ -1067,6 +1190,7 @@ label day2_morning_transition:
 
     show screen cinema_letterbox
     scene bg upstairs with fade
+    set_music("clock")
     "Day 2. The morning comes in cold and grey through frosted panes."
     "Getting up, your hand catches the brass pull of the nightstand's bottom drawer, and the drawer does not move."
 
@@ -1097,7 +1221,8 @@ label day2_night_transition:
     show screen cinema_letterbox
     scene bg parlor_night with fade
     $ night_sequence = True
-    
+    set_music("atmos_low")
+
     play sound "audio/clock_tick.wav"
     pause 0.5
     "Midnight arrives."
@@ -1114,6 +1239,7 @@ label day2_night_transition:
     if game_state.bullet_available or knife_found:
         menu:
             "Draw the revolver and go looking for them" if game_state.bullet_available:
+                set_music("suspense")
                 call screen shoot_target_picker(CHARACTERS, "revolver")
                 $ final_target = _return
                 if final_target != "cancel":
@@ -1124,6 +1250,7 @@ label day2_night_transition:
                         jump execute_shot
 
             "Take the knife and go looking for them" if knife_found:
+                set_music("suspense")
                 call screen shoot_target_picker(CHARACTERS, "knife")
                 $ final_target = _return
                 if final_target != "cancel":
@@ -1167,6 +1294,7 @@ label execute_shot:
         "A horrifying silence collapses over the hall."
         "[tname] crumples to the floorboards, lifeless."
         play sound "audio/revolver_cock.wav"
+        set_music("suspense")
         "You pull the trigger again in blind panic—*CLICK*."
         "Empty. You shot the wrong person."
         # No footsteps here: the coverup opens with them arriving, so the old
@@ -1190,6 +1318,7 @@ label execute_stab:
     $ tname = get_character_display_name(stab_target)
 
     play sound "audio/strain_burn.wav"
+    set_music("suspense")
     scene black with Dissolve(0.25)
     with death_shake
 
@@ -1216,6 +1345,9 @@ label execute_stab:
 ################################################################################
 
 label wrong_kill_coverup:
+    # The wrong sound first, then the quieter bed under the scene.
+    sfx_sting("wrong")
+    set_music("death_atmos")
     python:
         survivors = [c for c in CHARACTERS if c != game_state.target_shot]
 
@@ -1326,6 +1458,9 @@ label wrong_kill_coverup:
     with dissolve
 
     scene expression get_scene_bg("gate", _slot, _at_night) with fade
+    set_music("atmos_low")
+    if _at_night:
+        set_ambience("storm_wind", loop=True)
     play sound "audio/thunder.wav"
 
     # How long the dig takes, and what it costs, both read off the hour.
@@ -1398,6 +1533,13 @@ label after_hours:
 
     scene expression get_scene_bg("parlor", game_state.current_slot, night_sequence) with fade
 
+    # The storm only follows a midnight burial. A revolver fired at four in the
+    # afternoon has no weather with it.
+    if night_sequence:
+        stop_ambience(fade=2.5)
+    sfx_sting("body_thud")
+    set_music("atmos_general")
+
     # The round does not advance the clock. A midnight burial is a small-hours
     # scene; a revolver fired at four in the afternoon stays one.
     if night_sequence:
@@ -1430,6 +1572,8 @@ label night_death:
     hide screen hud
     show screen cinema_letterbox
     scene black with fade
+    stop_ambience(fade=1.0)
+    set_music("death")
     pause 0.6
 
     play sound "audio/clock_tick.wav"
@@ -1462,7 +1606,10 @@ label night_death:
         jump ending_swallowed
 
     # ─── Return by Death Reality Tear ────────────────────────────────────────
+    sfx_sting("return_by_death")
     play sound "audio/loop_snap.wav"
+    # Silence over the white flash, then back to whatever the morning is.
+    stop_music(fade=0.6)
     scene white with Dissolve(0.15)
     with death_shake
     scene black with Dissolve(0.8)
@@ -1484,7 +1631,12 @@ label night_death:
     play sound "audio/heartbeat.wav"
     pause 0.5
 
-    # Fullscreen loop title card
+    # Fullscreen loop title card. Strain 3 is the last loop before the ending
+    # closes, and its track is ten seconds long -- played once, not looped.
+    if game_state.strain >= MAX_STRAIN:
+        set_music("strain3", loop=False)
+    else:
+        set_music("clock")
     call screen loop_splash_screen(game_state.loop_no, game_state.strain)
 
     scene bg upstairs with fade
@@ -1546,6 +1698,7 @@ label loop_confession_attempt:
 
     show screen cinema_letterbox
     scene bg parlor with fade
+    set_music("atmos_short")
     pause 0.4
 
     "You find [_cname] before you have decided what you are going to say, which is how you know you are going to say it."
@@ -1568,6 +1721,7 @@ label loop_confession_attempt:
     "You get exactly that far, and then your throat closes."
 
     play sound "audio/strain_burn.wav"
+    set_music("death")
     with death_shake
     "It is not fear. Fear you could push through. This is a hand, cold and unhurried, closing on the inside of your windpipe — the same hand, the same patience, the one from the dark."
     death_narrator "\"Not that.\""
@@ -1635,6 +1789,7 @@ label loop_confession_attempt:
 label ending_victory:
     hide screen hud
     show screen cinema_letterbox
+    set_music("ending")
     $ k = run_state.killer
     $ ag = run_state.agenda
     $ kname = get_character_display_name(k)
@@ -1742,6 +1897,8 @@ label ending_victory:
 label ending_swallowed:
     hide screen hud
     show screen cinema_letterbox
+    stop_ambience(fade=1.0)
+    set_music("game_over")
     play sound "audio/loop_snap.wav"
     scene white with Dissolve(2.0)
     python:
@@ -1760,6 +1917,9 @@ label ending_swallowed:
     pause 1.5
 
     scene black with Dissolve(2.0)
+    # The clock bed under the last few lines, after the white-out.
+    set_music("clock")
+    sfx_sting("static")
     "Somewhere below, a clock strikes seven."
     "In an upstairs room, a bed is made, and has been for some time, and nobody in the house can quite remember who it was for."
 

@@ -2,6 +2,7 @@
 
 import unittest
 import os
+import re
 import sys
 import json
 
@@ -667,6 +668,159 @@ class TestGameEngine(unittest.TestCase):
         # generator's position map, so a room you visited that turned out empty
         # could never render. The new index must be driven by known_facts.
         self.assertNotIn("run_state.positions[c][str(d)][s]", screens)
+
+    def test_19_manifest_tracks_all_exist_on_disk(self):
+        """Test 19: every path the audio manifest claims must actually ship.
+
+        The manifest was built by copying files out of archives at the project
+        root, which are not committed. A path that survived the copy but not the
+        commit would be a silent runtime failure -- Ren'Py raises nothing for a
+        missing file, it just plays nothing.
+        """
+        from engine.audio_manifest import (
+            MUSIC, AMBIENCE, AMBIENT_POOL, LEGACY_SFX, all_tracks,
+        )
+
+        game_dir = os.path.join(base_dir, "game")
+
+        missing = [p for p in all_tracks()
+                   if not os.path.isfile(os.path.join(game_dir, p))]
+        self.assertEqual(missing, [],
+                         f"audio manifest points at files that do not exist: {missing}")
+
+        # Non-empty, because a zero-byte ogg is worse than a missing one: it
+        # exists, so nothing complains, and the channel just goes quiet.
+        empty = [p for p in all_tracks()
+                 if os.path.getsize(os.path.join(game_dir, p)) == 0]
+        self.assertEqual(empty, [], f"empty audio files: {empty}")
+
+        self.assertTrue(MUSIC, "no music tracks in the manifest")
+        self.assertTrue(AMBIENT_POOL, "silence pool is empty")
+
+    def test_20_every_audio_key_used_in_script_is_in_the_manifest(self):
+        """Test 20: no .rpy may reference an audio key the manifest lacks.
+
+        This is the audio equivalent of test_14. set_music() and friends return
+        quietly when a key is unknown, so a typo would produce a scene with no
+        music and no error anywhere -- exactly the class of bug that shipped an
+        undeclared background before.
+        """
+        rpy_files = [f for f in os.listdir(os.path.join(base_dir, "game"))
+                     if f.endswith(".rpy")]
+
+        # set_music/set_ambience take MUSIC keys, sfx_sting takes AMBIENCE keys.
+        usage = {"set_music": set(), "set_ambience": set(), "sfx_sting": set()}
+        for name in rpy_files:
+            with open(os.path.join(base_dir, "game", name), encoding="utf-8") as fh:
+                for line in fh:
+                    for fn in usage:
+                        token = fn + "("
+                        idx = line.find(token)
+                        while idx != -1:
+                            arg = line[idx + len(token):].split(",")[0]
+                            # An inline conditional can put two keys in one call,
+                            # so take every quoted token before the comma.
+                            for key in re.findall(r'"([a-z0-9_]+)"', arg):
+                                usage[fn].add(key)
+                            idx = line.find(token, idx + 1)
+
+        from engine.audio_manifest import MUSIC, AMBIENCE
+
+        self.assertTrue(usage["set_music"],
+                        "no set_music call found -- the scan itself is broken")
+
+        bad_music = usage["set_music"] - set(MUSIC)
+        bad_amb = usage["set_ambience"] - set(AMBIENCE)
+        bad_sting = usage["sfx_sting"] - set(AMBIENCE)
+
+        self.assertEqual(bad_music, set(),
+                         f"set_music keys missing from MUSIC: {bad_music}")
+        self.assertEqual(bad_amb, set(),
+                         f"set_ambience keys missing from AMBIENCE: {bad_amb}")
+        self.assertEqual(bad_sting, set(),
+                         f"sfx_sting keys missing from AMBIENCE: {bad_sting}")
+
+    def test_21_wired_audio_covers_every_scene_and_watches_for_silence(self):
+        """Test 21: the wiring is present and the silence watcher cannot fire on
+        top of a looping bed.
+
+        Two failure modes this catches. The first is a scene that silently lost
+        its music during an edit -- the symptom is invisible and there is no
+        error, so only an assertion can catch it. The second is the watcher
+        playing a pool track over storm_wind, which loops: two ambience tracks
+        on one channel means the second interrupts the first mid-word.
+        """
+        from engine.audio_manifest import (
+            AMBIENCE_LOOPING, IDLE_AMBIENCE_AFTER, AMBIENCE_COOLDOWN,
+        )
+
+        with open(os.path.join(base_dir, "game", "script.rpy"),
+                  encoding="utf-8") as fh:
+            script = fh.read()
+
+        # Every scene that plays a bed or a sting.
+        for fn in ("set_music", "set_ambience", "sfx_sting", "stop_music",
+                   "stop_ambience", "play_ambience_bed"):
+            self.assertIn(fn + "(", script, f"{fn}() helper is never called")
+
+        # The scenes the curation table promised audio for, and what each one
+        # must still contain. Naming the exact call rather than accepting any
+        # audio call matters: a scene that loses its bed but keeps its sting
+        # would pass a looser check, which is exactly what mutation M5 caught.
+        required = {
+            "day1_intro": ['set_music("atmos_low")', 'sfx_sting("static")'],
+            "day_slot_start": ['set_music("kitchen")'],
+            "advance_slot": ['sfx_sting("evening_bell")'],
+            "day1_night_transition": ['set_music("night")',
+                                      'set_ambience("storm_wind"'],
+            "day2_morning_transition": ['set_music("clock")'],
+            "day2_night_transition": ['set_music("atmos_low")'],
+            "wrong_kill_coverup": ['sfx_sting("wrong")',
+                                   'set_music("death_atmos")'],
+            "day1_evening_bond": ['set_music("evening_final")'],
+            "after_hours": ['set_music("atmos_general")',
+                            'sfx_sting("body_thud")'],
+            "night_death": ['set_music("death")',
+                            'sfx_sting("return_by_death")',
+                            "stop_music("],
+            "loop_confession_attempt": ['set_music("death")'],
+            "ending_victory": ['set_music("ending")'],
+            "ending_swallowed": ['set_music("game_over")'],
+        }
+
+        for label, calls in required.items():
+            self.assertIn("label " + label + ":", script,
+                          f"label {label} no longer exists")
+            body = script.split("label " + label + ":", 1)[1]
+            # Take only this label's text, up to the next one.
+            nxt = body.find("\nlabel ")
+            if nxt != -1:
+                body = body[:nxt]
+            for call in calls:
+                self.assertIn(call, body,
+                              f"label {label} lost its audio call: {call}")
+
+        # Only storm_wind loops, and the pool never does. If the pool gained a
+        # looping entry it would fight itself on the ambience channel.
+        self.assertTrue(AMBIENCE_LOOPING)
+        self.assertLess(
+            IDLE_AMBIENCE_AFTER, AMBIENCE_COOLDOWN,
+            "the silence threshold should be well under the pool cooldown, "
+            "otherwise the pool can never fire twice")
+
+        # The watcher lives on an overlay screen rather than the HUD, because
+        # the HUD is hidden during cutscenes and conversation.
+        with open(os.path.join(base_dir, "game", "screens.rpy"),
+                  encoding="utf-8") as fh:
+            screens = fh.read()
+        self.assertIn("screen ambience_idle_watcher():", screens)
+        self.assertIn("idle_ambience_tick", screens)
+        self.assertIn('config.overlay_screens.append("ambience_idle_watcher")',
+                      screens)
+
+        # And it must not depend on renpy.get_time(), which does not exist in
+        # this SDK -- that is what traceback.txt is a record of.
+        self.assertNotIn("renpy.get_time()", script)
 
 
 if __name__ == "__main__":

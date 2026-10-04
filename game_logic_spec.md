@@ -695,6 +695,37 @@ Include `11_shader_chromatic-aberration.rpy` unmodified. It provides `chromatic_
 
 `CREDITS.md` and an in-game credits screen: GRIMUMU (shader, required). Check the original download pages for the horror pack and Marika packs and add the authors and license terms there. No license file shipped with those zips.
 
+### 14.5 Audio
+
+31 curated tracks ship from four `shdemo-*.zip` archives that sat at the project root and are gitignored. They were auditioned through `tools/extract_audio.py`, which extracts the archives to the gitignored `audio_inbox/` and builds a contact sheet; the picks are copied into the repo under semantic names, so the manifest records intent rather than archive ids.
+
+`game/engine/audio_manifest.py` holds `MUSIC`, `AMBIENCE`, `AMBIENT_POOL` and `LEGACY_SFX`. It is a `.py` rather than a `.rpy` so tests can assert against it without booting Ren'Py, the same reasoning as `bridge.py`.
+
+Channels: `music` (beds, 0.55), `ambience` (wind and the silence pool, 0.35), `stinger` (one-shots, 1.0), alongside the existing `voice_sfx`. Music sits well below the voice blips deliberately — those play on every dialogue line, so a louder bed would fight the text.
+
+Scene map:
+
+| Scene | Key |
+|---|---|
+| main menu | `title` |
+| day1_intro, day1_evening_bond | `atmos_low`, `evening_final` |
+| day_slot_start | `kitchen` in the kitchen, `night` at night, else `atmos_general` |
+| evening → evening slot | `evening_final` on Day 2, else `atmos_general` |
+| day1_night_transition | `night` + looping `storm_wind` |
+| day2_morning_transition, loop reset | `clock` |
+| day2_night_transition | `atmos_low`, `suspense` when aiming |
+| wrong_kill_coverup | `wrong` sting, then `death_atmos` |
+| after_hours | `body_thud`, `atmos_general` |
+| night_death | `death`, `return_by_death`, silence over the flash, then `strain3` once at max strain |
+| loop_confession_attempt | `atmos_short`, then `death` |
+| ending_victory / ending_swallowed | `ending` / `game_over`, then `clock` |
+
+The eight original synthesized effects stay in place; nothing in the curated set is unambiguously better for a UI click.
+
+**Silence pool.** Six interchangeable atmospheric tracks play at random when the house has been quiet for `IDLE_AMBIENCE_AFTER` seconds, with `AMBIENCE_COOLDOWN` between them. Driven by a `timer` on the `ambience_idle_watcher` overlay screen rather than the HUD, because the HUD is hidden during cutscenes and conversation — where the silence lands. It uses `time.monotonic()`; the SDK's own time accessor is absent in this build, which is what `traceback.txt` records. Both constants and all volumes are tunable at the top of the manifest.
+
+The source tracks were not cut for looping, so a bed that outlasts its scene may seam where it repeats.
+
 ---
 
 ## 15. Content to author

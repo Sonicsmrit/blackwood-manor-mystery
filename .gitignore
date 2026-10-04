@@ -37,6 +37,8 @@ __pycache__/
 /*.zip
 /.freebuff/
 /.vscode/
+# Scratch dir for tools/extract_audio.py -- the uncurated source audio, ~200MB.
+/audio_inbox/
 # Duplicate of game/11_shader_chromatic-aberration.rpy, which is the copy Ren'Py
 # actually loads. Kept here only as a reference of where the shader came from.
 /11_shader_chromatic-aberration.rpy
