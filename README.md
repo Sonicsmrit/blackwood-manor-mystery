@@ -53,8 +53,10 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
 
 ## Dialogue Exchange
 <img width="1915" height="1022" alt="image" src="https://github.com/user-attachments/assets/f58bce8d-01a2-44d8-9bbd-9a5b6378da06" />
+
 ## Notebook
 <img width="1872" height="1007" alt="image" src="https://github.com/user-attachments/assets/2e226b5a-d6dd-4bb0-8871-6545a760024b" />
+
 ## LOOP death
 <img width="1653" height="885" alt="image" src="https://github.com/user-attachments/assets/91090bc6-c5a6-49c2-bc93-ab4313fc4254" />
 
