@@ -419,5 +419,116 @@ class TestGameEngine(unittest.TestCase):
         self.assertNotIn(
             "east wall", _build_system_prompt("odile", "Odile", "servant", early))
 
+    def test_15_renpy_python_blocks_have_no_stranded_return(self):
+        """Test 15: No `return` may be stranded outside a def by a bad indent.
+
+        Ships-a-broken-build guard. A `return` in script.rpy made Ren'Py refuse to
+        launch the game ("'return' outside function"): an edit had dedented the
+        body of build_conversation_context by one level, which ended the def early
+        and dropped the rest of it at script level.
+
+        `py_compile` cannot catch this -- it only ever sees the .py files, never the
+        .rpy -- so a broken indent passed the suite and reached a pushed commit.
+        Two earlier versions of this guard also passed on the broken file, because
+        wrapping a block in a function (how Ren'Py actually compiles it) makes a
+        stranded `return` legal again, and dedenting the block body breaks
+        multi-line parenthesised imports. So this works on indentation alone:
+
+        For every `return` in a python block, walk backwards for the block openers
+        that enclose it. Legal, because Ren'Py compiles blocks as functions:
+            return            directly in the block body, no enclosing opener
+            def f(): ...      return inside a def
+        Illegal, and only reachable when a def above it dedented early:
+            if x: ...         return nested in control flow at block level
+
+        A `return` statement can never sit inside brackets, so continuation lines
+        are irrelevant and no parsing is needed.
+        """
+        import re
+
+        marker = re.compile(r"^(\s*)(?:init\s+|init\s+\d+\s*)?python:\s*$")
+        openers = ("if ", "elif ", "else", "for ", "while ", "try", "except",
+                   "finally", "with ", "match ", "case ")
+
+        def indent_of(line):
+            return len(line) - len(line.lstrip())
+
+        def enclosing(body, idx, floor):
+            """Block openers enclosing body[idx], innermost first."""
+            stack = []
+            level = indent_of(body[idx])
+            j = idx - 1
+            while j >= 0:
+                line = body[j]
+                if not line.strip() or line.lstrip().startswith("#"):
+                    j -= 1
+                    continue
+                ind = indent_of(line)
+                if ind < level:
+                    stack.append(line.strip())
+                    level = ind
+                    if ind <= floor:
+                        break
+                j -= 1
+            return stack
+
+        for rel in ["script.rpy", "custom_screens.rpy", "options.rpy"]:
+            path = os.path.join(base_dir, "game", rel)
+            if not os.path.exists(path):
+                continue
+            with open(path, encoding="utf-8") as fh:
+                lines = fh.read().split("\n")
+
+            total = len(lines)
+            checked = 0
+            i = 0
+            while i < total:
+                m = marker.match(lines[i])
+                if not m:
+                    i += 1
+                    continue
+                floor = len(m.group(1))
+                body = []
+                j = i + 1
+                while j < total:
+                    line = lines[j]
+                    if not line.strip():
+                        body.append(line)
+                        j += 1
+                        continue
+                    # A column-0 comment does not end a python block.
+                    if line.lstrip().startswith("#"):
+                        body.append(line)
+                        j += 1
+                        continue
+                    if indent_of(line) > floor:
+                        body.append(line)
+                        j += 1
+                        continue
+                    break
+
+                for k, line in enumerate(body):
+                    if not line.strip().startswith("return"):
+                        continue
+                    checked += 1
+                    stack = enclosing(body, k, floor)
+                    in_def = any(o.startswith("def ") or o.startswith("async def ")
+                                 or o.startswith("class ") for o in stack)
+                    if in_def or not stack:
+                        continue
+                    # No def above it, yet it is nested: the block dedented early.
+                    self.fail(
+                        f"{rel}:{i + 1 + k} `return` is outside every def but "
+                        f"nested inside {' -> '.join(reversed(stack))}. A python "
+                        f"block dedented early and stranded the rest of a def at "
+                        f"script level; Ren'Py will refuse to launch with "
+                        f"'return' outside function")
+                i = j
+
+            if rel == "script.rpy":
+                self.assertGreater(checked, 0,
+                                   "found no returns to check at all")
+
+
 if __name__ == "__main__":
     unittest.main()

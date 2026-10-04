@@ -75,12 +75,12 @@ init python:
         })
 
         # Report the hour to the LLM as "night" only for the genuine midnight sequence.
-    # A revolver fired in the afternoon runs the same burial round but is still
-    # the afternoon, so the model must not be told otherwise.
-    # game_state.current_slot is deliberately left alone -- it feeds the engine's
-    # three-slot model, where a fourth value would KeyError.
-    if night_sequence:
-        slot = "night"
+        # A revolver fired in the afternoon runs the same burial round but is still
+        # the afternoon, so the model must not be told otherwise.
+        # game_state.current_slot is deliberately left alone -- it feeds the engine's
+        # three-slot model, where a fourth value would KeyError.
+        if night_sequence:
+            slot = "night"
 
         killed_name = ""
         if game_state.wrong_kill and game_state.target_shot:
