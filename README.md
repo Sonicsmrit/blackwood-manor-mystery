@@ -40,6 +40,26 @@ Deduce the killer before nightfall. Uncover lies, catch deviations in their dail
    - The test suite runs `renpy.sh . lint` against the project when an SDK is present. Three build-breaking errors in this project's history passed every other test, because nothing had handed the scripts to the real parser.
 
 ---
+# Game Screenshots
+
+## Start Menu
+<img width="1896" height="1034" alt="image" src="https://github.com/user-attachments/assets/58b1de80-6939-4604-853e-f1dc607389ed" />
+
+## Intro Sequence
+<img width="1892" height="1024" alt="image" src="https://github.com/user-attachments/assets/c3e6e63d-e599-4ce7-815b-e00ea2876762" />
+
+## Day 1 Screen
+<img width="1898" height="1021" alt="image" src="https://github.com/user-attachments/assets/837d765b-f53f-4698-8502-f700c890cfbd" />
+
+## Dialogue Exchange
+<img width="1915" height="1022" alt="image" src="https://github.com/user-attachments/assets/f58bce8d-01a2-44d8-9bbd-9a5b6378da06" />
+## Notebook
+<img width="1872" height="1007" alt="image" src="https://github.com/user-attachments/assets/2e226b5a-d6dd-4bb0-8871-6545a760024b" />
+## LOOP death
+<img width="1653" height="885" alt="image" src="https://github.com/user-attachments/assets/91090bc6-c5a6-49c2-bc93-ab4313fc4254" />
+
+
+---
 
 ## 🚀 How to Run
 
