@@ -25,6 +25,9 @@
 /dialogue.txt
 /strings.json
 
+# Build output from `renpy.sh . distribute` -- distributable builds for judges.
+/dist/
+
 # Python bytecode.
 __pycache__/
 *.pyc
