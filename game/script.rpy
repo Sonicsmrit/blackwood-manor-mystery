@@ -13,9 +13,11 @@ init python:
     from engine.constants import (
         PLAYER_NAME, DAYS, SLOTS, LOCATIONS, ACTIONS_PER_SLOT,
         CONVO_MAX_TURNS, MAX_STRAIN, TRUST_MIN, TRUST_MAX,
-        CHARACTERS, TOPICS, BASE_LOCATIONS, AGENDAS, DEATH_FRAGMENTS
+        CHARACTERS, TOPICS, BASE_LOCATIONS, AGENDAS, DEATH_FRAGMENTS,
+        get_motive
     )
     from engine.state import RunState, GameState, new_game_state, reset_loop
+    import time
     from engine.generator import generate_run
     from engine.facts import build_all_facts, get_available_facts, get_search_findings
     from engine.conflicts import find_conflicts
@@ -87,7 +89,7 @@ init python:
 
         if is_killer:
             cause = agenda_info.get("cause", "sabotage")
-            motive = agenda_info.get("motive", "")
+            motive = get_motive(run_state.agenda, run_state.killer)
             slips = ", ".join(agenda_info.get("slip_keywords", []))
             scene_desc["secret_truth"] = (
                 "KILLER: You are the murderer who orchestrated the fatal crash by " + str(cause) + ". "
@@ -724,8 +726,16 @@ label start_conversation:
 label convo_turn_loop:
     $ convo_turn += 1
 
+    # Force an interaction boundary so the click that dismissed the previous
+    # line cannot carry into the choice screen that follows it.
+    pause 0.01
+
+    # Choices stay locked until this moment, so the click that skipped the last
+    # line cannot land on one. See CHOICE_ARM_DELAY.
+    $ convo_arm_at = time.monotonic() + CHOICE_ARM_DELAY
+
     # Call conversation UI: character dialogue on top, choice boxes at bottom
-    call screen conversation_ui(active_speaker_name, active_speaker_color, active_npc_line, active_choices)
+    call screen conversation_ui(active_speaker_name, active_speaker_color, active_npc_line, active_choices, convo_arm_at)
     $ chosen_intent, chosen_choice_text = _return
 
     # Play selection sound

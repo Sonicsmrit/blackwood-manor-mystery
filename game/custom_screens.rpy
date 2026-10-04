@@ -5,7 +5,16 @@
 
 init offset = 1
 
+## How long conversation choices ignore input after they appear.
+##
+## These buttons are drawn inside the say textbox, so the click that dismisses
+## Adrian's line lands on them the instant the next choice set appears. Without
+## a short arming window that click silently picks a choice.
+define CHOICE_ARM_DELAY = 0.18
+
 init python:
+    import time
+
     def character_has_conflict(char_id, conflicts, facts):
         facts_by_id = {}
         for f in facts:
@@ -505,9 +514,19 @@ screen shoot_confirm(target_name, weapon="revolver"):
 ################################################################################
 ## Conversation: NPC line on the painted plate, Adrian's options beneath
 ################################################################################
-screen conversation_ui(char_name, char_color, npc_line, choices):
+screen conversation_ui(char_name, char_color, npc_line, choices, arm_at=0):
     zorder 90
     modal True
+
+    # Choices ignore input until arm_at so the click that dismissed the
+    # previous line cannot carry over and select one. arm_at arrives as a
+    # screen parameter: screen bodies are re-evaluated on every interaction,
+    # so a deadline computed here would slide forward each time.
+    #
+    # `sensitive` is also only re-evaluated when an interaction restarts, so
+    # force one as the window closes. Without this the buttons can sit locked
+    # until the player clicks, which is the very click we are trying to catch.
+    timer CHOICE_ARM_DELAY action Function(lambda: None)
 
     # Voice blips while the typewriter runs.
     on "show" action Play("voice_sfx", "audio/voice_" + str(active_speaker) + ".wav", loop=True)
@@ -565,19 +584,27 @@ screen conversation_ui(char_name, char_color, npc_line, choices):
                         xpadding 26
                         background GOTH_BTN
                         hover_background GOTH_BTN_HOVER
+                        insensitive_background GOTH_BTN_OFF
+                        # Armed briefly after the screen appears. See
+                        # CHOICE_ARM_DELAY for why.
+                        #
+                        # Ren'Py already ignores a release that did not begin on
+                        # the same button, so press-and-release is handled.
+                        sensitive (time.monotonic() >= arm_at)
                         action [Stop("voice_sfx"), Return((intent_label, choice_text))]
                         text "[choice_text]":
                             font GOTH_FONT_BODY
                             size 20
                             color GOTH_TEXT_SOFT
                             hover_color GOTH_GOLD
+                            insensitive_color GOTH_TEXT_OFF
                             yalign 0.5
                             line_spacing 3
 
 
 # Backward compatibility alias
 screen conversation_choices(choices):
-    use conversation_ui(active_speaker_name, active_speaker_color, active_npc_line, choices)
+    use conversation_ui(active_speaker_name, active_speaker_color, active_npc_line, choices, time.monotonic() + CHOICE_ARM_DELAY)
 
 
 ################################################################################

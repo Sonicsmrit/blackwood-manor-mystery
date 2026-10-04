@@ -145,13 +145,35 @@ Every character has four topics: `routine`, `house`, `adrian` (who you were), `c
 | routine | 0 | States where they spend a given slot. True on Day 1. |
 | house | 1 | Harmless lore. Carries decoy secret hints. |
 | adrian | 1 | Backstory fragments, Marika's version of the relationship. |
-| crash | 1 (vague) / 2 (specific) | See below. |
+| crash | 2 (vague) / 2 (specific) | See below. |
 
 ### 5.3 Claims
 
 - **Routine claim**: "I take tea in the kitchen every afternoon." True on Day 1. On Day 2 it is false for the killer and for any character with a decoy secret that deviates.
-- **Crash claim, vague version** (min trust 1): innocents say something non-specific ("a terrible accident, I couldn't say how"). Every innocent uses this version. Never a specific cause.
+- **Crash claim, vague version** (min trust 2): innocents say something non-specific ("a terrible accident, I couldn't say how"). Every innocent uses this version. Never a specific cause.
 - **Crash claim, slip version** (min trust 2): the killer states the specific cause tied to their agenda, casually, as if common knowledge (section 6). **Exclusive.**
+
+Both crash versions open at the same trust. Offering to talk about the crash must not
+identify the killer, so the two are gated identically — see 5.4.
+
+### 5.4 How choices are offered
+
+Each turn the conversation offers 4 intents: 1-2 `probe:<topic>`, plus `comfort`,
+`press`, and `small_talk` (from turn 3, `leave` replaces one of them).
+
+Probe topics are picked by **reachability**, never by exclusivity:
+
+1. Topics already askable (some unlearned fact with `min_trust <= trust`).
+2. Topics that just became askable (`min_trust == trust`) are always offered
+   first, so a newly unlocked topic can't drift back out of reach.
+3. Any remaining probe slot is filled from topics askable within one trust point.
+4. If nothing is left to ask about, one probe is drawn from the full topic list.
+
+Reachability reads only `min_trust`, and the `crash` gates are now identical for
+every character, so the same probe topics are offered to everyone at the same trust.
+The choice list therefore carries **no** information about who the killer is. An
+earlier rule that preferred `exclusive` topics did: `probe:crash` appeared for the
+killer on every turn and for nobody else, naming them before any deduction.
 
 ### 5.4 World facts
 
@@ -201,11 +223,24 @@ The Notebook shows a red marker per conflict per character. It shows no verdict,
 
 Three templates. Each fixes a cause, a slip, and a finding for the killer. Any character can be the killer under any agenda.
 
-| Agenda | Cause id | Slip (what the killer lets drop on `crash`) | Killer finding (at their base location) | Motive (used in the ending) |
+| Agenda | Cause id | Slip (what the killer lets drop on `crash`) | Killer finding (at their base location) | Motive |
 |---|---|---|---|---|
-| inheritance | brakes_cut | the brake lines were cut | a forged will naming the killer as heir of last resort | They profit if Adrian and Elise die. |
-| cover_up | drugged_driver | their father's drink was drugged before he drove | altered records and a hidden sedative vial | Adrian's returning memory would expose what they did. |
-| obsession | forced_off_road | another car ran them off the road | keepsakes: photos of Adrian, scratched out around other faces | They want Adrian here and will remove anyone who threatens that. |
+| inheritance | brakes_cut | the brake lines were cut | a forged will naming the killer as heir of last resort | per-killer, see 6.1 |
+| cover_up | drugged_driver | their father's drink was drugged before he drove | altered records and a hidden sedative vial | per-killer, see 6.1 |
+| obsession | forced_off_road | another car ran them off the road | keepsakes: photos of Adrian, scratched out around other faces | per-killer, see 6.1 |
+
+### 6.1 Motives are per (agenda, killer)
+
+One motive per pair: 3 agendas × 5 characters = 15 entries. Any character can be
+the killer under any agenda, so every pair is reachable and must be authored.
+
+Invariant: **a killer's own display name never appears in their own motive.**
+The `inheritance` motive used to be a single shared string, *"They profit if
+Adrian and Elise die."* Because that text reaches the killer's own LLM prompt,
+it made Elise — when she was the killer — believe she profited from her own
+death. Motives are therefore keyed per character; `inheritance` gives Elise a
+disinheritance framing that matches her `inheritance`/`elise` epilogue, and the
+other four characters keep the original wording.
 
 The LLM phrases the slip in the character's own voice but must contain the `slip_keywords` (validated, see section 10):
 

@@ -131,7 +131,11 @@ def build_all_facts(run_state) -> List[Fact]:
                 conflicts_with=["world:official_report"]
             ))
         else:
-            # Innocent vague claim (min_trust: 1)
+            # Innocent vague claim (min_trust: 2, matching the killer's slip).
+            # Gating this at 1 instead of 2 made the crash topic reachable one
+            # trust point earlier for innocents than for the killer, which the
+            # choice generator would have surfaced as a tell. Same gate for
+            # everyone means asking about the crash proves nothing on its own.
             facts.append(Fact(
                 id=f"claim:{char}:crash",
                 kind="claim",
@@ -139,7 +143,7 @@ def build_all_facts(run_state) -> List[Fact]:
                 topic="crash",
                 text_key=f"crash_vague.{char}",
                 text=f"{char.capitalize()} recalled only that the crash was a terrible, tragic accident in the fog.",
-                gate={"via": "talk", "loc": None, "slot": None, "day": None, "min_trust": 1},
+                gate={"via": "talk", "loc": None, "slot": None, "day": None, "min_trust": 2},
                 exclusive=False,
                 conflicts_with=[]
             ))

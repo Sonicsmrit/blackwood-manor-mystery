@@ -16,15 +16,44 @@ Features:
 import os
 import json
 import re
+import time
+import socket
 import urllib.request
 import urllib.error
 from typing import Dict, Any, List, Optional, Tuple
 
 import ssl
 
-API_TIMEOUT = 3.0
+API_TIMEOUT = 10.0
+
+# Free-tier Gemini allows ~15 requests/minute. When that quota is blown we
+# back off for this long instead of re-probing it on every dialogue turn.
+QUOTA_COOLDOWN = 60.0
 
 _ssl_context_cache = None
+
+# Providers reject urllib's default User-Agent (Groq's edge answers with
+# Cloudflare error 1010), so every request identifies itself as a browser.
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+# Words a character must never say aloud, because they would expose the loop.
+# Matched on word boundaries: a substring test here rejected every line
+# containing "staring", "again", "explain", "certainly" or "waiting".
+FORBIDDEN_WORDS = ["ai", "video game", "loop", "time travel", "reset"]
+
+def _forbidden_hit(line_lower: str) -> Optional[str]:
+    """Return the first forbidden word present in an already-lowercased line."""
+    for word in FORBIDDEN_WORDS:
+        # Tolerate inflections ("loops", "resets", "resetting") but only for
+        # words long enough to survive a suffix without colliding. "ai" must
+        # stay exact, or "aid" and "ails" would trip it.
+        suffix = r"(?:s|es|ed|ing)?" if len(word) >= 4 else ""
+        if re.search(r"\b" + re.escape(word) + suffix + r"\b", line_lower):
+            return word
+    return None
 
 def _strip_emojis(text: str) -> str:
     """Thoroughly strip all emoji characters, icons, and non-standard symbols."""
@@ -168,13 +197,63 @@ def _load_roster() -> Dict[str, Any]:
 
 # ─── API Callers ──────────────────────────────────────────────────────────────
 
+# Set when a provider answers 429, so we stop re-probing a dead quota and let
+# another backend serve the turn instead.
+_quota_blocked_until: Dict[str, float] = {}
+_last_failure = ""
+_last_provider = ""
+
+def _last_failure_reason() -> str:
+    """Human-readable reason the last live attempt produced nothing."""
+    return _last_failure or "unknown"
+
+def _note_failure(reason: str) -> None:
+    """Record why a live attempt came back empty."""
+    global _last_failure
+    _last_failure = reason
+
+def _quota_blocked(provider: str) -> bool:
+    """Whether this provider's own quota is currently parked."""
+    if time.monotonic() < _quota_blocked_until.get(provider, 0.0):
+        _note_failure(provider + " quota still cooling down after HTTP 429")
+        return True
+    return False
+
+def _block_quota(provider: str) -> None:
+    """Park one provider whose request quota is exhausted.
+
+    Scoped per provider on purpose: parking Gemini must not also skip the
+    failover backend, or a dead primary takes the whole chain down with it.
+    """
+    _quota_blocked_until[provider] = time.monotonic() + QUOTA_COOLDOWN
+    _note_failure(provider + " HTTP 429 (request quota exhausted)")
+    print("[LLM] " + provider + " quota exhausted (HTTP 429); pausing that provider for "
+          + str(int(QUOTA_COOLDOWN)) + "s.")
+
+def _describe_http_error(provider: str, e: Exception) -> str:
+    """Short, loggable description of a failed request."""
+    if isinstance(e, urllib.error.HTTPError):
+        return provider + " HTTP " + str(e.code)
+    if isinstance(e, urllib.error.URLError):
+        reason = getattr(e, "reason", e)
+        if isinstance(reason, socket.timeout):
+            return provider + " timed out after " + str(API_TIMEOUT) + "s"
+        return provider + " network error: " + str(reason)
+    return provider + " " + type(e).__name__ + ": " + str(e)
+
+def _is_rate_limited(e: Exception) -> bool:
+    return isinstance(e, urllib.error.HTTPError) and e.code == 429
+
 def _call_gemini(system_prompt: str, user_prompt: str) -> Optional[str]:
-    """Call Google Gemini API using ultra-fast, low-latency models."""
+    """Call Google Gemini API. Primary backend."""
     key = _get_key("GOOGLE_API_KEY") or _get_key("GEMINI_API_KEY")
     if not key:
         return None
 
-    # Ultra-fast models that do not hit 429 rate limits and respond in ~1.2s
+    if _quota_blocked("Gemini"):
+        return None
+
+    # Second entry is a fallback for when the primary name is retired.
     models_to_try = [
         os.environ.get("GEMINI_MODEL", "gemini-flash-lite-latest"),
         "gemini-3.5-flash-lite"
@@ -183,7 +262,7 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> Optional[str]:
     for model in models_to_try:
         url = ("https://generativelanguage.googleapis.com/v1beta/models/"
                + model + ":generateContent?key=" + key)
-        headers = {"Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
@@ -204,22 +283,35 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> Optional[str]:
                     if parts:
                         return parts[0].get("text", "")
         except Exception as e:
-            # Try next model immediately without sleeping
+            if _is_rate_limited(e):
+                # Every model here shares one quota, so there is nothing to gain
+                # from trying the next name.
+                _block_quota("Gemini")
+                return None
+            _note_failure(_describe_http_error("Gemini", e))
+            print("[LLM] Gemini call failed (" + _describe_http_error("Gemini", e)
+                  + ", model " + model + "); trying next model.")
             continue
     return None
 
 
 def _call_groq(system_prompt: str, user_prompt: str) -> Optional[str]:
-    """Call Groq API (OpenAI-compatible)."""
+    """Call Groq API (OpenAI-compatible). Serves as failover for Gemini."""
     key = _get_key("GROQ_API_KEY")
     if not key:
         return None
 
-    model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    if _quota_blocked("Groq"):
+        return None
+
+    # llama-3.3-70b-versatile is not on every Groq plan; qwen3.8-27b is the
+    # model verified to return the strict JSON this prompt asks for.
+    model = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": "Bearer " + key,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": USER_AGENT
     }
     payload = {
         "model": model,
@@ -240,7 +332,11 @@ def _call_groq(system_prompt: str, user_prompt: str) -> Optional[str]:
             if choices:
                 return choices[0].get("message", {}).get("content", "")
     except Exception as e:
-        print("[LLM] Groq call failed: " + str(e))
+        if _is_rate_limited(e):
+            _block_quota("Groq")
+            return None
+        _note_failure(_describe_http_error("Groq", e))
+        print("[LLM] Groq call failed (" + _describe_http_error("Groq", e) + ").")
     return None
 
 
@@ -250,12 +346,16 @@ def _call_anthropic(system_prompt: str, user_prompt: str) -> Optional[str]:
     if not key:
         return None
 
+    if _quota_blocked("Anthropic"):
+        return None
+
     model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     url = "https://api.anthropic.com/v1/messages"
     headers = {
         "x-api-key": key,
         "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
+        "content-type": "application/json",
+        "User-Agent": USER_AGENT
     }
     payload = {
         "model": model,
@@ -272,25 +372,39 @@ def _call_anthropic(system_prompt: str, user_prompt: str) -> Optional[str]:
             if content and content[0].get("type") == "text":
                 return content[0].get("text")
     except Exception as e:
-        print("[LLM] Anthropic call failed: " + str(e))
+        if _is_rate_limited(e):
+            _block_quota("Anthropic")
+            return None
+        _note_failure(_describe_http_error("Anthropic", e))
+        print("[LLM] Anthropic call failed (" + _describe_http_error("Anthropic", e) + ").")
     return None
 
 
 def _call_llm_api(system_prompt: str, user_prompt: str) -> Optional[str]:
-    """Try the active LLM backend."""
+    """Try each backend in turn, returning the first usable answer.
+
+    Gemini leads. Groq and Anthropic are failover: whichever keys are present
+    get a turn when the one before them failed, so an exhausted Gemini quota
+    degrades to live AI rather than to canned text.
+    """
     mode = get_mode()
-    result = None
-    if mode == "gemini" or mode == "live":
-        result = _call_gemini(system_prompt, user_prompt)
+
+    order = [("gemini", _call_gemini), ("groq", _call_groq), ("anthropic", _call_anthropic)]
+    if mode == "fallback":
+        return None
+
+    # An explicit mode still tries the others behind it, so a dead backend is
+    # never mistaken for a game with no AI at all.
+    preferred = {"gemini": 0, "groq": 1, "anthropic": 2, "live": 0}.get(mode, 0)
+    order = order[preferred:] + order[:preferred]
+
+    for name, caller in order:
+        result = caller(system_prompt, user_prompt)
         if result:
-            return result
-    if mode == "groq" or (mode == "live" and not result):
-        result = _call_groq(system_prompt, user_prompt)
-        if result:
-            return result
-    if mode == "anthropic" or (mode == "live" and not result):
-        result = _call_anthropic(system_prompt, user_prompt)
-        if result:
+            # Record the backend that actually answered, which is not
+            # necessarily the configured mode when failover kicked in.
+            global _last_provider
+            _last_provider = name
             return result
     return None
 
@@ -617,9 +731,8 @@ def _validate_and_fix(char: str, response_text: str, choices_spec: List[str]) ->
 
     # Check forbidden words
     line_lower = dialogue.lower()
-    for forbidden in ["ai", "video game", "loop", "time travel", "reset"]:
-        if forbidden in line_lower:
-            return None
+    if _forbidden_hit(line_lower):
+        return None
 
     if "exit_code" not in result:
         result["exit_code"] = None
@@ -659,9 +772,9 @@ def validate_dialogue_response(
             return False, "choice %d intent does not match choices_spec" % i
 
     line_lower = dialogue.lower()
-    for forbidden in ["ai", "video game", "loop", "time travel", "reset"]:
-        if re.search(r"\b" + re.escape(forbidden) + r"\b", line_lower):
-            return False, "dialogue contains forbidden word: " + forbidden
+    hit = _forbidden_hit(line_lower)
+    if hit:
+        return False, "dialogue contains forbidden word: " + hit
 
     # Spec 10.4 rule 6: innocents must never utter a slip keyword.
     if is_innocent and slip_keywords:
@@ -730,8 +843,11 @@ def generate_dialogue(
                 deflected, choices_spec, context
             )
             if result is not None:
-                print(f"[LLM] Dynamic dialogue generated via {mode} (expression: {result.get('expression')})")
+                served_by = _last_provider or mode
+                print(f"[LLM] Dynamic dialogue generated via {served_by} (expression: {result.get('expression')})")
                 return result
+            # Say why, so a silent drop to canned text is never a mystery again.
+            print("[LLM] No usable live reply (" + _last_failure_reason() + "); authored fallback used.")
         except Exception as e:
             print("[LLM] Dialogue generation failed, using fallback: " + str(e))
 
@@ -778,6 +894,7 @@ def _generate_dialogue_llm(
             return None
         validated = _validate_and_fix(char, response_text, choices_spec)
         if validated is None:
+            _note_failure("live reply failed shape/content validation")
             return None
 
         # Fail safe: an innocent must never be heard uttering a slip keyword (rule 6).
@@ -802,6 +919,7 @@ def _generate_dialogue_llm(
             response_text = _call_llm_api(system_prompt, user_prompt)
 
     print("[LLM] Using authored fallback after validation failure.")
+    _note_failure("validation rejected the reply (" + (reason or "unknown") + ")")
     return None
 
 

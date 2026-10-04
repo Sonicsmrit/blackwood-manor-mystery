@@ -6,11 +6,38 @@ from .constants import TRUST_MIN, TRUST_MAX, TOPICS, CONVO_MAX_TURNS
 from .facts import Fact, get_available_facts
 from .state import GameState, RunState
 
+def topic_reach(char: str, trust: int, known_facts: Set[str], all_facts: List[Fact]):
+    """Split this character's unlearned topics by how close they are to askable.
+
+    Returns (obtainable_now, just_unlocked, reachable_soon). Every bucket is a
+    pure function of the topic's min_trust gates, never of `exclusive` -- that
+    is what stops the choice list from fingerprinting the killer.
+    """
+    obtainable_now: List[str] = []
+    just_unlocked: List[str] = []
+    reachable_soon: List[str] = []
+
+    for topic in TOPICS:
+        topic_facts = [f for f in all_facts if f.char == char and f.topic == topic and f.gate.get("via") == "talk"]
+        unlearned = [f for f in topic_facts if f.id not in known_facts]
+        if not unlearned:
+            continue
+        cheapest = min(f.gate.get("min_trust", 0) for f in unlearned)
+        if cheapest <= trust:
+            obtainable_now.append(topic)
+        if cheapest == trust:
+            just_unlocked.append(topic)
+        elif cheapest <= trust + 1:
+            reachable_soon.append(topic)
+
+    return obtainable_now, just_unlocked, reachable_soon
+
+
 def generate_intents(char: str, trust: int, known_facts: Set[str], all_facts: List[Fact], turn_number: int, max_turns: int = CONVO_MAX_TURNS, rng: Optional[random.Random] = None) -> List[str]:
     """
     Generate exactly 4 choice intents for a conversation turn.
     Rules:
-    - 1-2 probe:<topic> for topics with unrevealed facts (prioritize exclusive facts)
+    - 1-2 probe:<topic> chosen by REACHABILITY, never by exclusivity (see below)
     - 1 comfort
     - 1 press (if gated topic exists and trust < gate) else small_talk
     - From turn 3 onward: always include leave (replaces small_talk/press)
@@ -19,36 +46,49 @@ def generate_intents(char: str, trust: int, known_facts: Set[str], all_facts: Li
         rng = random.Random()
 
     intents: List[str] = []
-    
-    # 1. Determine unrevealed topics for this character
-    unrevealed_topics = []
-    exclusive_topics = []
-    
-    for topic in TOPICS:
-        # Check facts for this char and topic
-        topic_facts = [f for f in all_facts if f.char == char and f.topic == topic and f.gate.get("via") == "talk"]
-        unlearned = [f for f in topic_facts if f.id not in known_facts]
-        if unlearned:
-            unrevealed_topics.append(topic)
-            if any(f.exclusive for f in unlearned):
-                exclusive_topics.append(topic)
 
-    # Pick 1 or 2 probe intents
-    probe_picks = []
-    # Always include exclusive topic first if available
-    for et in exclusive_topics:
-        probe_picks.append(f"probe:{et}")
-        
-    for ut in unrevealed_topics:
-        probe_intent = f"probe:{ut}"
-        if probe_intent not in probe_picks and len(probe_picks) < 2:
-            probe_picks.append(probe_intent)
-            
-    # If no unrevealed topics remain, pick from general topics
+    # 1. Work out which topics this character could still be asked about.
+    #
+    # Deliberately keyed on min_trust rather than `exclusive`. Only the killer
+    # holds an exclusive crash claim, so preferring exclusive topics pinned
+    # "probe:crash" on screen for them on every single turn and for everyone
+    # else never -- which named the killer before any deduction happened.
+    # Reachability asks the same question of all five characters, so the offer
+    # itself carries no information about who the killer is.
+    obtainable_now, just_unlocked, reachable_soon = topic_reach(
+        char, trust, known_facts, all_facts
+    )
+
+    # 2. Pick 1-2 probe intents.
+    probe_picks: List[str] = []
+
+    # A topic the player has just unlocked gets offered now, before it can drift
+    # back out of reach. This is the "highest-value one when it exists" rule,
+    # expressed so it fires identically for every character.
+    rng.shuffle(just_unlocked)
+    for topic in just_unlocked:
+        if len(probe_picks) < 2:
+            probe_picks.append(topic)
+
+    rng.shuffle(obtainable_now)
+    for topic in obtainable_now:
+        if topic in probe_picks or len(probe_picks) >= 2:
+            continue
+        probe_picks.append(topic)
+
+    # Fill any remaining slot from the wider reachable pool, so a conversation
+    # still offers something to ask even before anything unlocks.
+    filler = [t for t in dict.fromkeys(obtainable_now + reachable_soon)
+              if t not in probe_picks]
+    rng.shuffle(filler)
+    for topic in filler[:max(0, 2 - len(probe_picks))]:
+        probe_picks.append(topic)
+
+    # If nothing is left to ask about, fall back to the full topic list.
     if not probe_picks:
-        probe_picks.append(f"probe:{rng.choice(TOPICS)}")
-        
-    intents.extend(probe_picks)
+        probe_picks.append(rng.choice(TOPICS))
+
+    intents.extend("probe:" + topic for topic in probe_picks)
     
     # 2. Comfort (always 1)
     intents.append("comfort")
