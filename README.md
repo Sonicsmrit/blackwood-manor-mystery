@@ -558,6 +558,20 @@ The goal was to make AI part of the **actual mystery system** while keeping the 
 `( •̀ᴗ•́ )و`
 
 ---
+## 🚀 How to Run
+
+### Option 1: There's a release. Just download it from GitHub!
+
+### Option 2: Run the Visual Novel in Ren'Py Download the [Ren'Py SDK](https://www.renpy.org/latest/html/), then launch the game from this project directory:
+bash
+/path/to/renpy-8.x.x-sdk/renpy.sh .
+### Option 3: Run the Headless Simulation CLI Play or simulate an automated run in terminal:
+bash
+python3 game/engine/cli.py --verbose
+### Option 4: Run the Test Suite Verify that all mystery runs, seeds, state preservation, and fairness rules pass:
+bash
+python3 -m unittest tests/test_engine.py
+---
 
 # Credits & Attribution
 
